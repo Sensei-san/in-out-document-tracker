@@ -1,0 +1,7 @@
+{
+  "name": "Copy of In-Out Document Tracker",
+  "description": "An office management tool to track physical documents from arrival to dispatch using AI-powered OCR and digital proof of delivery.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
