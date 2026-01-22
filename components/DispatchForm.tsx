@@ -46,7 +46,7 @@ const DispatchForm: React.FC<DispatchFormProps> = ({ document, onSave, onCancel 
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+    <div className="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold text-gray-800 mb-2">Dispatch Document</h2>
       <p className="text-gray-600 mb-6">Subject: <span className="font-semibold">{document.subject}</span></p>
 

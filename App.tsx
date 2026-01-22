@@ -9,6 +9,9 @@ import DispatchForm from './components/DispatchForm';
 const App: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [view, setView] = useState<ViewState>({ name: 'dashboard' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeList, setActiveList] = useState<'incoming' | 'outgoing'>('incoming');
+
 
   useEffect(() => {
     try {
@@ -23,7 +26,11 @@ const App: React.FC = () => {
           statusHistory: doc.statusHistory.map((h: any) => ({
             ...h,
             timestamp: new Date(h.timestamp)
-          }))
+          })),
+          dispatchedDetails: doc.dispatchedDetails ? {
+              ...doc.dispatchedDetails,
+              dispatchedDate: new Date(doc.dispatchedDetails.dispatchedDate)
+          } : null
         }));
         setDocuments(docsWithDates);
       }
@@ -64,7 +71,13 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (view.name) {
       case 'dashboard':
-        return <Dashboard documents={documents} setView={setView} />;
+        return <Dashboard 
+                  documents={documents} 
+                  setView={setView} 
+                  searchTerm={searchTerm}
+                  activeList={activeList}
+                  setActiveList={setActiveList}
+                />;
       case 'add':
         return <DocumentForm onSave={addDocument} onCancel={() => setView({ name: 'dashboard' })} />;
       case 'dispatch':
@@ -74,13 +87,23 @@ const App: React.FC = () => {
         }
         return <div>Document not found</div>;
       default:
-        return <Dashboard documents={documents} setView={setView} />;
+        return <Dashboard 
+                  documents={documents} 
+                  setView={setView} 
+                  searchTerm={searchTerm}
+                  activeList={activeList}
+                  setActiveList={setActiveList}
+                />;
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      <Header />
+      <Header 
+        searchTerm={searchTerm} 
+        setSearchTerm={setSearchTerm}
+        setActiveList={setActiveList}
+      />
       <main className="p-4 sm:p-6 lg:p-8">
         {renderContent()}
       </main>

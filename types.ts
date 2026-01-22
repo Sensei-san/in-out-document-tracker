@@ -33,6 +33,7 @@ export interface Document {
   statusHistory: StatusHistoryEntry[];
   scannedDocument: string; // base64 data URL of the original scan
   dispatchedDetails: DispatchedDetails | null;
+  signingOffice?: string;
 }
 
 export type ViewState = 

@@ -61,7 +61,7 @@ const DocumentForm: React.FC<DocumentFormProps> = ({ onSave, onCancel }) => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+    <div className="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Scan New Document</h2>
       
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
