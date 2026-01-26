@@ -62,7 +62,14 @@ const DocumentForm: React.FC<DocumentFormProps> = ({ onSave, onCancel }) => {
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Scan New Document</h2>
+       <div className="flex items-center mb-6">
+          <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 mr-4">
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+               <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+             </svg>
+          </button>
+          <h2 className="text-2xl font-bold text-gray-800">Scan New Document</h2>
+       </div>
       
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
       

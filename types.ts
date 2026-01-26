@@ -34,9 +34,16 @@ export interface Document {
   scannedDocument: string; // base64 data URL of the original scan
   dispatchedDetails: DispatchedDetails | null;
   signingOffice?: string;
+  deliveredBy?: string; // For manually entered incoming docs
 }
 
 export type ViewState = 
   | { name: 'dashboard' }
   | { name: 'add' }
-  | { name: 'dispatch', docId: string };
+  | { name: 'dispatch', docId: string }
+  | { name: 'add-method' }
+  | { name: 'manual-entry' }
+  | { name: 'select-incoming' }
+  | { name: 'add-incoming-method' }
+  | { name: 'upload-batch' }
+  | { name: 'manual-entry-incoming', startMode?: 'manual' | 'scan' };

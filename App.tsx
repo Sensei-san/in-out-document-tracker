@@ -5,6 +5,11 @@ import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import DocumentForm from './components/DocumentForm';
 import DispatchForm from './components/DispatchForm';
+import AddMethodSelection from './components/AddMethodSelection';
+import ManualEntryForm from './components/ManualEntryForm';
+import AddIncomingMethod from './components/AddIncomingMethod';
+import ManualIncomingBatchForm from './components/ManualIncomingBatchForm';
+import FileUploadBatchForm from './components/FileUploadBatchForm';
 
 const App: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -58,6 +63,30 @@ const App: React.FC = () => {
     setView({ name: 'dashboard' });
   };
 
+  const saveManualDocuments = (docsToCreate: Partial<Document>[]) => {
+    const newDocs: Document[] = docsToCreate.map(d => {
+        const isOutgoing = d.status === DocumentStatus.Dispatched;
+        const timestamp = isOutgoing ? (d.dispatchedDetails?.dispatchedDate || new Date()) : new Date();
+        return {
+            id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            subject: d.subject || '',
+            senderName: d.senderName || '',
+            referenceNumber: d.referenceNumber || '',
+            originatingDivision: d.originatingDivision || '',
+            letterDate: d.letterDate || new Date(),
+            receivedDate: timestamp,
+            status: d.status || DocumentStatus.Received,
+            statusHistory: d.statusHistory || [{ status: d.status || DocumentStatus.Received, timestamp }],
+            scannedDocument: d.scannedDocument || '',
+            dispatchedDetails: d.dispatchedDetails || null,
+            deliveredBy: d.deliveredBy,
+        };
+    });
+    saveDocuments([...documents, ...newDocs]);
+    alert(`Successfully saved ${newDocs.length} document(s)!`);
+    setView({ name: 'dashboard' });
+  };
+
   const updateDocument = (updatedDoc: Document) => {
     const updatedDocs = documents.map(doc => doc.id === updatedDoc.id ? updatedDoc : doc);
     saveDocuments(updatedDocs);
@@ -78,8 +107,22 @@ const App: React.FC = () => {
                   activeList={activeList}
                   setActiveList={setActiveList}
                 />;
+      case 'add-method':
+        return <AddMethodSelection setView={setView} />;
+      case 'add-incoming-method':
+        return <AddIncomingMethod setView={setView} />;
+      case 'upload-batch':
+        return <FileUploadBatchForm onSave={saveManualDocuments} onCancel={() => setView({ name: 'add-incoming-method' })} />;
       case 'add':
-        return <DocumentForm onSave={addDocument} onCancel={() => setView({ name: 'dashboard' })} />;
+        return <DocumentForm onSave={addDocument} onCancel={() => setView({ name: 'add-method' })} />;
+      case 'manual-entry':
+        return <ManualEntryForm onSave={saveManualDocuments} onCancel={() => setView({ name: 'add-method' })} />;
+      case 'manual-entry-incoming':
+        return <ManualIncomingBatchForm 
+                  startMode={view.startMode}
+                  onSave={saveManualDocuments} 
+                  onCancel={() => setView({ name: 'add-incoming-method' })} 
+                />;
       case 'dispatch':
         const docToDispatch = getDocumentById(view.docId);
         if (docToDispatch) {

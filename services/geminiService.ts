@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 if (!process.env.API_KEY) {
@@ -59,7 +58,8 @@ export const extractDocumentDetails = async (imageDataUrl: string): Promise<any>
       },
     });
 
-    const jsonString = response.text;
+    // FIX: Trim whitespace from the response text before parsing as JSON.
+    const jsonString = response.text?.trim();
     if (!jsonString) {
       throw new Error("Empty response from API");
     }
