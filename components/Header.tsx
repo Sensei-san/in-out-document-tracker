@@ -1,13 +1,15 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { ViewState } from '../types';
 
 interface HeaderProps {
     searchTerm: string;
     setSearchTerm: (term: string) => void;
     setActiveList: (list: 'incoming' | 'outgoing') => void;
+    setView: React.Dispatch<React.SetStateAction<ViewState>>;
 }
 
-const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm, setActiveList }) => {
+const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm, setActiveList, setView }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -40,9 +42,10 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm, setActiveLis
                     </svg>
                 </button>
                 {isMenuOpen && (
-                    <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20">
-                        <a href="#" onClick={(e) => { e.preventDefault(); setActiveList('incoming'); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Incoming</a>
-                        <a href="#" onClick={(e) => { e.preventDefault(); setActiveList('outgoing'); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Outgoing</a>
+                    <div className="absolute left-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-20">
+                        <a href="#" onClick={(e) => { e.preventDefault(); setView({ name: 'add-incoming-method' }); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Incoming</a>
+                        <a href="#" onClick={(e) => { e.preventDefault(); setView({ name: 'add-method' }); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Outgoing</a>
+                        <div className="border-t my-1"></div>
                         <a href="#" onClick={(e) => { e.preventDefault(); alert('Tracking feature coming soon!'); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Tracking</a>
                         <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</a>
                     </div>

@@ -15,7 +15,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
   const startCamera = useCallback(async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;

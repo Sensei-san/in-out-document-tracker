@@ -11,9 +11,10 @@ interface DashboardProps {
   searchTerm: string;
   activeList: 'incoming' | 'outgoing';
   setActiveList: (list: 'incoming' | 'outgoing') => void;
+  updateDocumentProperty: (docId: string, updates: Partial<Document>) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, activeList, setActiveList }) => {
+const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, activeList, setActiveList, updateDocumentProperty }) => {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [sortBy, setSortBy] = useState<SortByType>('date');
 
@@ -46,7 +47,11 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
   };
 
   const incomingDocs = useMemo(() => {
-    const filtered = filteredDocuments.filter(doc => doc.status !== DocumentStatus.Dispatched && doc.status !== DocumentStatus.Archived);
+    // An "incoming" document is one that was ever received.
+    // It remains in this list for historical purposes even after being dispatched.
+    const filtered = filteredDocuments.filter(doc => 
+      doc.statusHistory && doc.statusHistory.length > 0 && doc.statusHistory[0].status === DocumentStatus.Received
+    );
     return sortDocuments(filtered, 'incoming');
   }, [filteredDocuments, sortBy]);
 
@@ -56,17 +61,39 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
   }, [filteredDocuments, sortBy]);
 
 
-  const getStatusBadge = (status: DocumentStatus) => {
+  const getFullStatusBadge = (status: DocumentStatus) => {
     switch (status) {
-      case DocumentStatus.ReturnedFromSigning:
-      case DocumentStatus.Dispatched:
-      case DocumentStatus.Archived:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Signed</span>;
+      case DocumentStatus.Received:
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Received</span>;
       case DocumentStatus.SentForSigning:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending Signature</span>;
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Signing</span>;
+      case DocumentStatus.ReturnedFromSigning:
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Signed</span>;
+      case DocumentStatus.Dispatched:
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Dispatched</span>;
+      case DocumentStatus.Archived:
+         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Archived</span>;
       default:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Not Signed</span>;
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Unknown</span>;
     }
+  };
+  
+  const handleSigningOfficeToggle = (docId: string, isChecked: boolean) => {
+    updateDocumentProperty(docId, { signingOffice: isChecked ? "DCMD's Office" : undefined });
+  };
+
+  const isSigned = (status: DocumentStatus) => 
+      status === DocumentStatus.ReturnedFromSigning || 
+      status === DocumentStatus.Dispatched || 
+      status === DocumentStatus.Archived;
+
+  const isDispatched = (status: DocumentStatus) => 
+      status === DocumentStatus.Dispatched || status === DocumentStatus.Archived;
+
+  const handleSignedToggle = (docId: string, isChecked: boolean) => {
+    updateDocumentProperty(docId, { 
+      status: isChecked ? DocumentStatus.ReturnedFromSigning : DocumentStatus.SentForSigning 
+    });
   };
 
   return (
@@ -134,7 +161,7 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Originating Division</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">in DCMDs Office</th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Signed</th>
                     </tr>
@@ -148,13 +175,39 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
                                 <td className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs">{doc.subject}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doc.referenceNumber}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.senderName}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doc.originatingDivision}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doc.signingOffice || 'N/A'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getStatusBadge(doc.status)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getFullStatusBadge(doc.status)}</td>
+                                <td 
+                                  className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" 
+                                  onClick={(e) => { 
+                                    if (isDispatched(doc.status)) return;
+                                    e.stopPropagation(); 
+                                    handleSigningOfficeToggle(doc.id, !doc.signingOffice); 
+                                  }}>
+                                    <div className={`flex items-center ${isDispatched(doc.status) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-2 ${!!doc.signingOffice ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                                            {!!doc.signingOffice && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg>}
+                                        </div>
+                                        <span>{doc.signingOffice ? 'Yes' : 'No'}</span>
+                                    </div>
+                                </td>
+                                <td 
+                                  className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" 
+                                  onClick={(e) => { 
+                                    if (isDispatched(doc.status)) return;
+                                    e.stopPropagation(); 
+                                    handleSignedToggle(doc.id, !isSigned(doc.status)); 
+                                  }}>
+                                     <div className={`flex items-center ${isDispatched(doc.status) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-2 ${isSigned(doc.status) ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                                            {isSigned(doc.status) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg>}
+                                        </div>
+                                        <span>{isSigned(doc.status) ? 'Yes' : 'No'}</span>
+                                    </div>
+                                </td>
                             </tr>
                         ))
                     ) : (
-                        <tr><td colSpan={8} className="text-center py-4 text-gray-500">No incoming documents found.</td></tr>
+                        <tr><td colSpan={9} className="text-center py-4 text-gray-500">No incoming documents found.</td></tr>
                     )}
                 </tbody>
              </table>

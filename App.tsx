@@ -46,8 +46,32 @@ const App: React.FC = () => {
   }, []);
 
   const saveDocuments = useCallback((docs: Document[]) => {
-    setDocuments(docs);
-    localStorage.setItem('documents', JSON.stringify(docs));
+    setDocuments(docs); // Keep full data in memory for the current session
+    try {
+      // Create a version of documents for storage that omits large base64 strings
+      // to avoid exceeding localStorage limits and causing a crash.
+      const docsForStorage = docs.map(doc => {
+        // Destructure to separate large fields
+        const { scannedDocument, dispatchedDetails, ...restOfDoc } = doc;
+
+        // Also handle large fields within dispatchedDetails
+        const lightDispatchedDetails = dispatchedDetails ? {
+          ...dispatchedDetails,
+          recipientSignature: dispatchedDetails.recipientSignature ? '[Signature Omitted]' : '',
+          recipientPhoto: dispatchedDetails.recipientPhoto ? '[Photo Omitted]' : '',
+        } : null;
+
+        return {
+          ...restOfDoc,
+          scannedDocument: scannedDocument ? '[Scan Omitted]' : '',
+          dispatchedDetails: lightDispatchedDetails,
+        };
+      });
+
+      localStorage.setItem('documents', JSON.stringify(docsForStorage));
+    } catch (error) {
+      console.error("Failed to save documents to local storage. The data might be too large.", error);
+    }
   }, []);
 
   const addDocument = (doc: Omit<Document, 'id' | 'status' | 'receivedDate' | 'statusHistory'>) => {
@@ -93,6 +117,21 @@ const App: React.FC = () => {
     setView({ name: 'dashboard' });
   };
   
+  const updateDocumentProperty = (docId: string, updates: Partial<Document>) => {
+    const updatedDocs = documents.map(doc => {
+        if (doc.id === docId) {
+            const newDoc = { ...doc, ...updates };
+            // If status is being updated, add a history entry.
+            if (updates.status && updates.status !== doc.status) {
+                newDoc.statusHistory = [...doc.statusHistory, { status: updates.status, timestamp: new Date() }];
+            }
+            return newDoc;
+        }
+        return doc;
+    });
+    saveDocuments(updatedDocs);
+  };
+
   const getDocumentById = (id: string): Document | undefined => {
       return documents.find(doc => doc.id === id);
   };
@@ -106,6 +145,7 @@ const App: React.FC = () => {
                   searchTerm={searchTerm}
                   activeList={activeList}
                   setActiveList={setActiveList}
+                  updateDocumentProperty={updateDocumentProperty}
                 />;
       case 'add-method':
         return <AddMethodSelection setView={setView} />;
@@ -136,6 +176,7 @@ const App: React.FC = () => {
                   searchTerm={searchTerm}
                   activeList={activeList}
                   setActiveList={setActiveList}
+                  updateDocumentProperty={updateDocumentProperty}
                 />;
     }
   };
@@ -146,6 +187,7 @@ const App: React.FC = () => {
         searchTerm={searchTerm} 
         setSearchTerm={setSearchTerm}
         setActiveList={setActiveList}
+        setView={setView}
       />
       <main className="p-4 sm:p-6 lg:p-8">
         {renderContent()}

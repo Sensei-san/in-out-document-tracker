@@ -29,6 +29,7 @@ interface ProcessFile {
 const FileUploadBatchForm: React.FC<FileUploadBatchFormProps> = ({ onSave, onCancel }) => {
     const [filesToProcess, setFilesToProcess] = useState<ProcessFile[]>([]);
     const [deliveredBy, setDeliveredBy] = useState('');
+    const [isReviewing, setIsReviewing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const processFiles = useCallback(async (files: ProcessFile[]) => {
@@ -71,7 +72,6 @@ const FileUploadBatchForm: React.FC<FileUploadBatchFormProps> = ({ onSave, onCan
 
         let newFiles: ProcessFile[] = [];
 
-        // Fix: Explicitly convert FileList to File[] to provide type safety in the loop.
         const files: File[] = Array.from(selectedFiles);
 
         for (const file of files) {
@@ -117,6 +117,9 @@ const FileUploadBatchForm: React.FC<FileUploadBatchFormProps> = ({ onSave, onCan
         
         setFilesToProcess(prev => [...prev, ...newFiles]);
         processFiles(newFiles);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     const handleDataChange = (id: string, field: keyof Document, value: string) => {
@@ -129,12 +132,20 @@ const FileUploadBatchForm: React.FC<FileUploadBatchFormProps> = ({ onSave, onCan
     };
 
     const handleSaveBatch = () => {
-        if (!deliveredBy) {
+        if (!deliveredBy.trim()) {
             alert("Please enter who delivered the documents.");
             return;
         }
-
-        const completedDocs = filesToProcess
+         const completedDocs = filesToProcess.filter(f => f.status === 'complete' && f.extractedData);
+         if(completedDocs.length === 0) {
+            alert("No documents have been successfully processed to save.");
+            return;
+        }
+        setIsReviewing(true);
+    };
+    
+    const handleConfirmSave = () => {
+         const completedDocs = filesToProcess
             .filter(f => f.status === 'complete' && f.extractedData)
             .map(f => ({
                 ...f.extractedData,
@@ -142,70 +153,134 @@ const FileUploadBatchForm: React.FC<FileUploadBatchFormProps> = ({ onSave, onCan
                 scannedDocument: f.imageDataUrl,
                 status: 'Received',
             }));
-
-        if(completedDocs.length === 0) {
-            alert("No documents have been successfully processed to save.");
-            return;
-        }
-
         onSave(completedDocs as Partial<Document>[]);
-    };
+    }
+
+    const isAnalyzing = filesToProcess.some(f => f.status === 'analyzing');
+    const hasCompletedDocs = filesToProcess.some(f => f.status === 'complete');
+    const isSaveDisabled = isAnalyzing || !deliveredBy.trim() || !hasCompletedDocs;
+    
+    const renderReviewView = () => {
+        const docsToReview = filesToProcess.filter(f => f.status === 'complete' && f.extractedData);
+        return (
+             <div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Review and Confirm Batch</h3>
+                 <p className="mb-4 text-gray-700"><strong>Delivered By:</strong> {deliveredBy}</p>
+                 <div className="overflow-x-auto bg-white rounded-lg shadow max-h-[60vh] overflow-y-auto">
+                     <table className="min-w-full divide-y divide-gray-200">
+                         <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Division</th>
+                            </tr>
+                         </thead>
+                         <tbody className="bg-white divide-y divide-gray-200">
+                            {docsToReview.map(doc => (
+                                <tr key={doc.id}>
+                                    <td className="px-4 py-2 text-sm text-gray-900">{doc.extractedData?.subject}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-900">{doc.extractedData?.senderName}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-500">{doc.extractedData?.referenceNumber}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-500">{doc.extractedData?.originatingDivision}</td>
+                                </tr>
+                            ))}
+                         </tbody>
+                     </table>
+                 </div>
+                 <div className="flex justify-between items-center mt-6 pt-4 border-t">
+                       <button onClick={() => setIsReviewing(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Back to Edit</button>
+                       <button onClick={handleConfirmSave} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg">
+                           Confirm & Save All ({docsToReview.length})
+                       </button>
+                    </div>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-6xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-lg">
+            <input type="file" multiple accept="image/*,application/pdf" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
             <div className="flex items-center mb-6">
-                <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 mr-4">
+                <button onClick={isReviewing ? () => setIsReviewing(false) : onCancel} className="text-gray-500 hover:text-gray-700 mr-4">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 </button>
-                <h2 className="text-2xl font-bold text-gray-800">Upload and Process Batch</h2>
+                <h2 className="text-2xl font-bold text-gray-800">{isReviewing ? 'Confirm Batch' : 'Upload and Process Batch'}</h2>
             </div>
+            
+            {isReviewing ? renderReviewView() : (
+                <>
+                    {filesToProcess.length === 0 ? (
+                        <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="border-4 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-center p-12 cursor-pointer hover:border-brand-primary hover:bg-gray-50 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                            <h3 className="mt-4 text-xl font-semibold text-gray-700">Click to upload files</h3>
+                            <p className="text-gray-500 mt-1">Select multiple images or PDFs</p>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="bg-brand-light p-4 rounded-lg border border-brand-secondary mb-6">
+                                <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+                                     <span className="bg-brand-primary text-white rounded-full h-6 w-6 flex items-center justify-center text-sm font-bold mr-3">1</span>
+                                     Provide Batch Information
+                                </h3>
+                                <label htmlFor="deliveredBy" className="block text-sm font-medium text-gray-700 flex items-center">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                    </svg>
+                                    Delivered By
+                                </label>
+                                <input 
+                                    id="deliveredBy"
+                                    type="text" 
+                                    value={deliveredBy} 
+                                    onChange={e => setDeliveredBy(e.target.value)} 
+                                    className="mt-1 block w-full sm:w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3" 
+                                    placeholder="Name of person delivering documents" 
+                                    required 
+                                />
+                                 <p className="text-xs text-gray-500 mt-1">This name will be applied to all documents saved in this batch.</p>
+                            </div>
 
-            {filesToProcess.length === 0 ? (
-                <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-4 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-center p-12 cursor-pointer hover:border-brand-primary hover:bg-gray-50 transition-colors"
-                >
-                    <input type="file" multiple accept="image/*,application/pdf" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                    <h3 className="mt-4 text-xl font-semibold text-gray-700">Click to upload files</h3>
-                    <p className="text-gray-500 mt-1">Select multiple images or PDFs</p>
-                </div>
-            ) : (
-                <div>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700">Delivered By</label>
-                        <input type="text" value={deliveredBy} onChange={e => setDeliveredBy(e.target.value)} className="mt-1 block w-full sm:w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Name of person delivering documents" required />
-                    </div>
-
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                        {filesToProcess.map(file => (
-                            <div key={file.id} className="bg-gray-50 p-4 rounded-lg shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                                <div className="flex flex-col items-center">
-                                    <img src={file.imageDataUrl} alt={file.fileName} className="w-full h-auto max-h-48 object-contain rounded border bg-white" />
-                                    <p className="text-xs text-gray-600 mt-2 truncate w-full text-center">{file.fileName}{file.pageNumber && ` (p. ${file.pageNumber})`}</p>
-                                </div>
-                                <div className="md:col-span-2">
-                                    {file.status === 'analyzing' && <div className="flex items-center justify-center h-full"><Spinner /></div>}
-                                    {file.status === 'error' && <div className="text-red-600 bg-red-100 p-3 rounded">Error: {file.error}</div>}
-                                    {file.status === 'complete' && file.extractedData && (
-                                        <div className="space-y-2">
-                                            <input type="text" placeholder="Subject / Description" value={file.extractedData.subject || ''} onChange={e => handleDataChange(file.id, 'subject', e.target.value)} className="w-full p-2 border rounded" />
-                                            <input type="text" placeholder="Sender Name" value={file.extractedData.senderName || ''} onChange={e => handleDataChange(file.id, 'senderName', e.target.value)} className="w-full p-2 border rounded" />
-                                            <input type="text" placeholder="Reference Number" value={file.extractedData.referenceNumber || ''} onChange={e => handleDataChange(file.id, 'referenceNumber', e.target.value)} className="w-full p-2 border rounded" />
-                                            <input type="text" placeholder="Originating Division" value={file.extractedData.originatingDivision || ''} onChange={e => handleDataChange(file.id, 'originatingDivision', e.target.value)} className="w-full p-2 border rounded" />
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                    <span className="bg-brand-primary text-white rounded-full h-6 w-6 flex items-center justify-center text-sm font-bold mr-3">2</span>
+                                    Review Extracted Details
+                                </h3>
+                                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+                                    {filesToProcess.map(file => (
+                                        <div key={file.id} className="bg-gray-50 p-4 rounded-lg shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                                            <div className="flex flex-col items-center">
+                                                <img src={file.imageDataUrl} alt={file.fileName} className="w-full h-auto max-h-48 object-contain rounded border bg-white" />
+                                                <p className="text-xs text-gray-600 mt-2 truncate w-full text-center">{file.fileName}{file.pageNumber && ` (p. ${file.pageNumber})`}</p>
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                {file.status === 'analyzing' && <div className="flex items-center justify-center h-full"><Spinner /></div>}
+                                                {file.status === 'error' && <div className="text-red-600 bg-red-100 p-3 rounded">Error: {file.error}</div>}
+                                                {file.status === 'complete' && file.extractedData && (
+                                                    <div className="space-y-2">
+                                                        <input type="text" placeholder="Subject / Description" value={file.extractedData.subject || ''} onChange={e => handleDataChange(file.id, 'subject', e.target.value)} className="w-full p-2 border rounded" />
+                                                        <input type="text" placeholder="Sender Name" value={file.extractedData.senderName || ''} onChange={e => handleDataChange(file.id, 'senderName', e.target.value)} className="w-full p-2 border rounded" />
+                                                        <input type="text" placeholder="Reference Number" value={file.extractedData.referenceNumber || ''} onChange={e => handleDataChange(file.id, 'referenceNumber', e.target.value)} className="w-full p-2 border rounded" />
+                                                        <input type="text" placeholder="Originating Division" value={file.extractedData.originatingDivision || ''} onChange={e => handleDataChange(file.id, 'originatingDivision', e.target.value)} className="w-full p-2 border rounded" />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                    <div className="flex justify-between items-center mt-6 pt-4 border-t">
-                       <button onClick={() => fileInputRef.current?.click()} className="bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-2 px-4 rounded-lg">Add More Files</button>
-                       <button onClick={handleSaveBatch} disabled={filesToProcess.some(f => f.status === 'analyzing') || !deliveredBy} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-400">
-                           Save All Documents ({filesToProcess.filter(f=>f.status === 'complete').length})
-                       </button>
-                    </div>
-                </div>
+                            <div className="flex justify-between items-center mt-6 pt-4 border-t">
+                               <button onClick={() => fileInputRef.current?.click()} className="bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-2 px-4 rounded-lg">Add More Files</button>
+                               <button onClick={handleSaveBatch} disabled={isSaveDisabled} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-400">
+                                   Save All Documents ({filesToProcess.filter(f=>f.status === 'complete').length})
+                               </button>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
