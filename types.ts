@@ -45,5 +45,6 @@ export type ViewState =
   | { name: 'manual-entry' }
   | { name: 'select-incoming' }
   | { name: 'add-incoming-method' }
-  | { name: 'upload-batch' }
-  | { name: 'manual-entry-incoming', startMode?: 'manual' | 'scan' };
+  | { name: 'upload-batch', docType: 'incoming' | 'outgoing' }
+  | { name: 'batch-signing', batch: Partial<Document>[] }
+  | { name: 'batch-entry', docType: 'incoming' | 'outgoing', startMode?: 'manual' | 'scan' | 'select' };

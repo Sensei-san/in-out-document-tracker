@@ -39,26 +39,32 @@ const AddMethodSelection: React.FC<AddMethodSelectionProps> = ({ setView }) => {
         <h2 className="text-3xl font-bold text-gray-800">Add a New Outgoing Document</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
          <MethodCard 
-          onClick={() => setView({ name: 'manual-entry' })}
+          onClick={() => setView({ name: 'batch-entry', docType: 'outgoing', startMode: 'scan' })}
+          title="Scan Document"
+          description="Use your device's camera to capture the document and let AI extract the details automatically."
+          icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+        />
+         <MethodCard 
+          onClick={() => setView({ name: 'batch-entry', docType: 'outgoing', startMode: 'manual' })}
           title="Enter Manually"
-          description="Create a new outgoing document from scratch by filling out a detailed form."
+          description="Create a new outgoing document from scratch by filling out a detailed form. Supports batching."
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
         />
         <MethodCard 
-          onClick={() => alert('Upload File feature coming soon!')}
+          onClick={() => setView({ name: 'upload-batch', docType: 'outgoing' })}
           title="Upload File"
-          description="Upload a pre-written digital file (PDF, image) to create a new outgoing record."
+          description="Upload digital files (PDF, image) and use AI to batch-process multiple outgoing documents at once."
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>}
         />
          <MethodCard 
-          onClick={() => alert('Select from Incoming feature coming soon!')}
+          onClick={() => setView({ name: 'batch-entry', docType: 'outgoing', startMode: 'select' })}
           title="Select from Incoming"
           description="Quickly dispatch a document that has already been registered as incoming."
           borderColor="border-yellow-400"
           warningText="For Outgoing Documents Only"
-          icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>}
+          icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>}
         />
       </div>
     </div>

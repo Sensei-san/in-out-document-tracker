@@ -41,22 +41,29 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
                 if (listType === 'incoming') {
                     return b.receivedDate.getTime() - a.receivedDate.getTime();
                 }
-                return (b.dispatchedDetails?.dispatchedDate.getTime() ?? 0) - (a.dispatchedDetails?.dispatchedDate.getTime() ?? 0);
+                const aDate = a.dispatchedDetails?.dispatchedDate || a.receivedDate;
+                const bDate = b.dispatchedDetails?.dispatchedDate || b.receivedDate;
+                return bDate.getTime() - aDate.getTime();
         }
     });
   };
 
   const incomingDocs = useMemo(() => {
-    // An "incoming" document is one that was ever received.
-    // It remains in this list for historical purposes even after being dispatched.
+    // Show documents that originated as Incoming (first status was Received)
     const filtered = filteredDocuments.filter(doc => 
       doc.statusHistory && doc.statusHistory.length > 0 && doc.statusHistory[0].status === DocumentStatus.Received
     );
     return sortDocuments(filtered, 'incoming');
   }, [filteredDocuments, sortBy]);
 
-  const dispatchedDocs = useMemo(() => {
-     const filtered = filteredDocuments.filter(doc => doc.status === DocumentStatus.Dispatched || doc.status === DocumentStatus.Archived);
+  const outgoingDocs = useMemo(() => {
+     // Show documents that originated as Outgoing (first status was SentForSigning)
+     // OR are currently Dispatched/Archived
+     const filtered = filteredDocuments.filter(doc => 
+        (doc.statusHistory && doc.statusHistory.length > 0 && doc.statusHistory[0].status === DocumentStatus.SentForSigning) ||
+        doc.status === DocumentStatus.Dispatched || 
+        doc.status === DocumentStatus.Archived
+     );
      return sortDocuments(filtered, 'outgoing');
   }, [filteredDocuments, sortBy]);
 
@@ -219,38 +226,42 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To Whom</th>
                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatched By</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Signature</th>
+                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action / Signature</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {dispatchedDocs.length > 0 ? (
-                        dispatchedDocs.map((doc, index) => (
+                    {outgoingDocs.length > 0 ? (
+                        outgoingDocs.map((doc, index) => (
                             <tr key={doc.id} onClick={() => setSelectedDoc(doc)} className="hover:bg-gray-50 cursor-pointer">
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.dispatchedDate.toLocaleDateString()}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.recipientName}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(doc.dispatchedDetails?.dispatchedDate || doc.receivedDate).toLocaleDateString()}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.recipientName || <span className="text-gray-400 italic">Pending</span>}</td>
                                 <td className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs">{doc.subject}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doc.referenceNumber}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.senderName}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.dispatchedBy}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getFullStatusBadge(doc.status)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.dispatchedBy || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {doc.dispatchedDetails && (
+                                    {doc.status === DocumentStatus.ReturnedFromSigning ? (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setView({ name: 'dispatch', docId: doc.id }); }}
+                                            className="bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm"
+                                        >
+                                            Dispatch Now
+                                        </button>
+                                    ) : doc.dispatchedDetails ? (
                                         <div className="flex items-center">
-                                            <img src={doc.dispatchedDetails.recipientSignature} alt="signature" className="w-20 h-10 object-contain border rounded-sm mr-2" />
-                                            <div>
-                                                <div className="text-sm font-medium text-gray-900">{doc.dispatchedDetails.recipientName}</div>
-                                                <div className="text-xs text-gray-500">{doc.dispatchedDetails.dispatchedDate.toLocaleDateString()}</div>
-                                            </div>
+                                            <img src={doc.dispatchedDetails.recipientSignature} alt="signature" className="w-16 h-8 object-contain border rounded-sm mr-2" />
+                                            <div className="text-xs text-gray-500">{doc.dispatchedDetails.dispatchedDate.toLocaleDateString()}</div>
                                         </div>
+                                    ) : (
+                                        <span className="text-xs text-gray-400 italic">Awaiting Signature</span>
                                     )}
                                 </td>
                             </tr>
                         ))
                     ) : (
-                        <tr><td colSpan={8} className="text-center py-4 text-gray-500">No outgoing documents found.</td></tr>
+                        <tr><td colSpan={7} className="text-center py-4 text-gray-500">No outgoing documents found.</td></tr>
                     )}
                 </tbody>
             </table>

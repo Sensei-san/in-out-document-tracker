@@ -8,9 +8,10 @@ import { extractDocumentDetails } from '../services/geminiService';
 interface DocumentFormProps {
   onSave: (doc: Omit<Document, 'id' | 'status' | 'receivedDate' | 'statusHistory' | 'dispatchedDetails'>) => void;
   onCancel: () => void;
+  title?: string;
 }
 
-const DocumentForm: React.FC<DocumentFormProps> = ({ onSave, onCancel }) => {
+const DocumentForm: React.FC<DocumentFormProps> = ({ onSave, onCancel, title = "Scan New Document" }) => {
   const [formData, setFormData] = useState({
     subject: '',
     senderName: '',
@@ -68,7 +69,7 @@ const DocumentForm: React.FC<DocumentFormProps> = ({ onSave, onCancel }) => {
                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
              </svg>
           </button>
-          <h2 className="text-2xl font-bold text-gray-800">Scan New Document</h2>
+          <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
        </div>
       
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}

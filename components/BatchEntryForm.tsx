@@ -1,21 +1,23 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@4.5.136';
 import { Document, DocumentStatus } from '../types';
-import DocumentForm from './DocumentForm'; // Re-using the scan form
+import DocumentForm from './DocumentForm'; 
 import { extractDocumentDetails } from '../services/geminiService';
 import Spinner from './Spinner';
 
 // Set worker source for pdf.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.5.136/build/pdf.worker.mjs`;
 
-interface ManualIncomingBatchFormProps {
-    startMode?: 'manual' | 'scan';
+interface BatchEntryFormProps {
+    docType: 'incoming' | 'outgoing';
+    startMode?: 'manual' | 'scan' | 'select';
+    existingDocuments?: Document[];
     onSave: (docs: Partial<Document>[]) => void;
     onCancel: () => void;
 }
 
-type Mode = 'list' | 'manual-form' | 'scan-form' | 'review';
+type Mode = 'list' | 'manual-form' | 'scan-form' | 'review' | 'select-incoming';
 
 function fileToDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -26,18 +28,26 @@ function fileToDataUrl(file: File): Promise<string> {
     });
 }
 
-const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ startMode, onSave, onCancel }) => {
+const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, existingDocuments = [], onSave, onCancel }) => {
     const [mode, setMode] = useState<Mode>('list');
     const [batch, setBatch] = useState<Partial<Document>[]>([]);
     const [currentDoc, setCurrentDoc] = useState<Partial<Document> | null>(null);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+    const [selectionSearch, setSelectionSearch] = useState('');
+    const [selectedIncomingIds, setSelectedIncomingIds] = useState<Set<string>>(new Set());
     const uploadFileRef = useRef<HTMLInputElement>(null);
 
+    const initialStatus = docType === 'incoming' ? DocumentStatus.Received : DocumentStatus.SentForSigning;
 
     useEffect(() => {
         if (startMode) {
-            setMode(startMode === 'manual' ? 'manual-form' : 'scan-form');
+            if (startMode === 'manual') setMode('manual-form');
+            else if (startMode === 'scan') setMode('scan-form');
+            else if (startMode === 'select') {
+                setSelectedIncomingIds(new Set());
+                setMode('select-incoming');
+            }
         }
     }, [startMode]);
 
@@ -49,6 +59,11 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
     
     const handleStartScanAdd = () => {
         setMode('scan-form');
+    };
+
+    const handleStartSelectIncoming = () => {
+        setSelectedIncomingIds(new Set());
+        setMode('select-incoming');
     };
 
     const processAndAddFiles = useCallback(async (files: File[]) => {
@@ -65,11 +80,10 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
                         referenceNumber: details.referenceNumber || '',
                         originatingDivision: details.originatingDivision || '',
                         scannedDocument: imageDataUrl,
-                        status: DocumentStatus.Received,
+                        status: initialStatus,
                     });
                 } catch (e) {
                     console.error("Failed to process file", file.name, e);
-                    // Optionally add an error placeholder to the batch
                 }
             };
             
@@ -100,7 +114,7 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
         
         setBatch(prev => [...prev, ...newDocs]);
         setIsProcessingUpload(false);
-    }, []);
+    }, [initialStatus]);
 
     const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = event.target.files;
@@ -112,7 +126,6 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
         }
     };
 
-
     const handleAddSimilar = () => {
         if (batch.length === 0) {
             alert("No documents in the list to copy from.");
@@ -121,6 +134,8 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
         const lastDoc = batch[batch.length - 1];
         setEditingIndex(null);
         setCurrentDoc({ ...lastDoc });
+        // Don't copy the ID when copying for similar doc
+        if (currentDoc) delete (currentDoc as any).id;
         setMode('manual-form');
     };
 
@@ -128,6 +143,12 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
         setEditingIndex(index);
         setCurrentDoc(batch[index]);
         setMode('manual-form');
+    };
+
+    const handleRemove = (index: number) => {
+        if (window.confirm('Are you sure you want to remove this document from the batch?')) {
+            setBatch(prev => prev.filter((_, i) => i !== index));
+        }
     };
     
     const handleReviewManualForm = (e: React.FormEvent) => {
@@ -137,7 +158,7 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
     
     const handleSaveFromReview = () => {
         if (currentDoc) {
-            const docToSave = { ...currentDoc, status: DocumentStatus.Received };
+            const docToSave = { ...currentDoc, status: initialStatus };
              if (editingIndex !== null) {
                 const updatedBatch = [...batch];
                 updatedBatch[editingIndex] = docToSave;
@@ -154,19 +175,73 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
     const handleSaveFromScan = (doc: Omit<Document, 'id' | 'status' | 'receivedDate' | 'statusHistory' | 'dispatchedDetails'>) => {
         const newDoc: Partial<Document> = {
             ...doc,
-            status: DocumentStatus.Received
+            status: initialStatus
         };
         setBatch(prev => [...prev, newDoc]);
         setMode('list');
     };
     
+    const toggleIncomingSelection = (id: string) => {
+        const next = new Set(selectedIncomingIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIncomingIds(next);
+    };
+
+    const confirmSelectIncoming = () => {
+        const selectedDocs = existingDocuments
+            .filter(d => selectedIncomingIds.has(d.id))
+            .map(d => ({
+                id: d.id,
+                subject: d.subject,
+                senderName: d.senderName,
+                referenceNumber: d.referenceNumber,
+                originatingDivision: d.originatingDivision,
+                scannedDocument: d.scannedDocument,
+                status: initialStatus // Convert to outgoing
+            }));
+        
+        setBatch(prev => [...prev, ...selectedDocs]);
+        setMode('list');
+    };
+
     const handleBack = () => {
         if (batch.length === 0) {
+            // If the batch is empty, going back should take us to the entry method selection
             onCancel();
         } else {
+            // If we have items, go back to the current batch list
             setMode('list');
         }
     };
+
+    const filteredIncoming = useMemo(() => {
+        // Filter for documents that are "Incoming" and not already in the current batch
+        const batchIds = new Set(batch.map(b => b.id).filter(Boolean));
+        return existingDocuments.filter(d => {
+            const isIncoming = d.status === DocumentStatus.Received || d.status === DocumentStatus.ReturnedFromSigning;
+            const notInBatch = !batchIds.has(d.id);
+            const matchesSearch = selectionSearch === '' || 
+                d.subject.toLowerCase().includes(selectionSearch.toLowerCase()) ||
+                d.referenceNumber.toLowerCase().includes(selectionSearch.toLowerCase()) ||
+                d.senderName.toLowerCase().includes(selectionSearch.toLowerCase());
+            
+            return isIncoming && notInBatch && matchesSearch;
+        });
+    }, [existingDocuments, batch, selectionSearch]);
+
+    const isGroupedSigningNeeded = useMemo(() => {
+        if (docType !== 'outgoing') return false;
+        if (batch.length <= 1) return false;
+        const firstRecipient = batch[0].senderName;
+        return !batch.every(doc => doc.senderName === firstRecipient);
+    }, [batch, docType]);
+
+    const submitButtonText = useMemo(() => {
+        if (docType === 'incoming') return 'Done & Save All';
+        if (batch.length === 1 || !isGroupedSigningNeeded) return 'Continue to Signing';
+        return 'Continue to Grouping';
+    }, [docType, batch.length, isGroupedSigningNeeded]);
 
     const renderListView = () => (
         <div className="w-full">
@@ -180,23 +255,33 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">S/N</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">File No</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{docType === 'incoming' ? 'Sender' : 'Recipient'}</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Division Office</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
                              </thead>
                              <tbody className="bg-white divide-y divide-gray-200">
                                 {batch.map((doc, index) => (
-                                    <tr key={index}>
+                                    <tr key={doc.id || index}>
                                         <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
-                                        <td className="px-4 py-2 text-sm text-gray-900 truncate max-w-xs">{doc.subject}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-900 truncate max-w-xs">
+                                            {doc.subject}
+                                            {doc.id && <span className="ml-2 px-1 bg-blue-100 text-blue-700 text-[10px] rounded uppercase">Imported</span>}
+                                        </td>
                                         <td className="px-4 py-2 text-sm text-gray-500">{doc.referenceNumber}</td>
                                         <td className="px-4 py-2 text-sm text-gray-900">{doc.senderName}</td>
                                         <td className="px-4 py-2 text-sm text-gray-500">{doc.originatingDivision}</td>
                                         <td className="px-4 py-2 text-sm">
-                                            <button onClick={() => handleEdit(index)} className="text-blue-600 hover:text-blue-900">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
-                                            </button>
+                                            <div className="flex items-center space-x-3">
+                                                <button onClick={() => handleEdit(index)} className="text-blue-600 hover:text-blue-900" title="Edit">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                </button>
+                                                <button onClick={() => handleRemove(index)} className="text-red-600 hover:text-red-900" title="Remove">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -207,7 +292,7 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
             ) : (
                 <div className="text-center py-10 px-6 bg-gray-50 rounded-lg">
                     <h3 className="text-lg font-medium text-gray-800">Your batch is empty.</h3>
-                    <p className="text-gray-500 mt-1">Start by adding your first document below.</p>
+                    <p className="text-gray-500 mt-1">Start by adding your first {docType} document below.</p>
                 </div>
             )}
 
@@ -220,22 +305,105 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
 
             <div className="mt-6 border-t pt-6">
                  <p className="text-sm font-semibold text-gray-600 mb-3 text-center">Add more documents to the list:</p>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                      <input type="file" multiple accept="image/*,application/pdf" ref={uploadFileRef} onChange={handleFileSelected} className="hidden" />
                      <button onClick={handleStartManualAdd} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add Manually</button>
                      <button onClick={handleStartScanAdd} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add by Scan</button>
                      <button onClick={() => uploadFileRef.current?.click()} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add by Upload</button>
+                     
+                     {docType === 'outgoing' && (
+                        <button onClick={handleStartSelectIncoming} className="p-3 bg-blue-50 text-blue-700 rounded-lg shadow hover:shadow-md transition-shadow border border-blue-200 flex items-center justify-center text-sm font-bold">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            Select from Incoming
+                        </button>
+                     )}
+
                      <button onClick={handleAddSimilar} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add Similar Doc</button>
                  </div>
             </div>
 
             <div className="flex justify-between mt-8">
                 <button onClick={onCancel} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancel Batch</button>
-                <button onClick={() => onSave(batch)} disabled={batch.length === 0 || isProcessingUpload} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400">Done & Save All</button>
+                <button 
+                    onClick={() => onSave(batch)} 
+                    disabled={batch.length === 0 || isProcessingUpload} 
+                    className={`font-bold py-2 px-6 rounded-lg shadow-md transition-all ${batch.length === 0 || isProcessingUpload ? 'bg-gray-400 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-dark text-white'}`}
+                >
+                    {submitButtonText}
+                </button>
             </div>
         </div>
     );
     
+    const renderSelectIncomingView = () => (
+        <div className="w-full">
+            <h3 className="text-xl font-bold mb-4">Select from Incoming List</h3>
+            <div className="mb-4">
+                <div className="relative">
+                    <input 
+                        type="text" 
+                        placeholder="Search incoming documents..." 
+                        value={selectionSearch}
+                        onChange={(e) => setSelectionSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-brand-primary"
+                    />
+                    <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+            </div>
+
+            <div className="max-h-[50vh] overflow-y-auto border rounded-lg bg-gray-50">
+                {filteredIncoming.length > 0 ? (
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Select</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ref No</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredIncoming.map(doc => (
+                                <tr 
+                                    key={doc.id} 
+                                    className={`cursor-pointer hover:bg-blue-50 ${selectedIncomingIds.has(doc.id) ? 'bg-blue-50' : ''}`}
+                                    onClick={() => toggleIncomingSelection(doc.id)}
+                                >
+                                    <td className="px-4 py-2">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedIncomingIds.has(doc.id)} 
+                                            readOnly 
+                                            className="h-4 w-4 text-brand-primary border-gray-300 rounded"
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2 text-sm text-gray-900">{doc.subject}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-500">{doc.referenceNumber}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-900">{doc.senderName}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <div className="p-8 text-center text-gray-500 italic">
+                        No available incoming documents found matching your criteria.
+                    </div>
+                )}
+            </div>
+
+            <div className="flex justify-between mt-6">
+                <button onClick={() => setMode('list')} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg">Back to Batch</button>
+                <button 
+                    onClick={confirmSelectIncoming} 
+                    disabled={selectedIncomingIds.size === 0}
+                    className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-400"
+                >
+                    Add {selectedIncomingIds.size > 0 ? `(${selectedIncomingIds.size})` : ''} to Batch
+                </button>
+            </div>
+        </div>
+    );
+
     const renderManualForm = () => (
         <div>
             <h3 className="text-xl font-bold mb-4">{editingIndex !== null ? 'Edit' : 'Add'} Document Details</h3>
@@ -247,12 +415,12 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
                  <form onSubmit={handleReviewManualForm} className="space-y-4">
                     <InputField label="Description" name="subject" value={currentDoc?.subject || ''} onChange={setCurrentDoc} />
                     <InputField label="File No" name="referenceNumber" value={currentDoc?.referenceNumber || ''} onChange={setCurrentDoc} />
-                    <InputField label="Name" name="senderName" value={currentDoc?.senderName || ''} onChange={setCurrentDoc} />
+                    <InputField label={docType === 'incoming' ? 'Sender Name' : 'Recipient Name'} name="senderName" value={currentDoc?.senderName || ''} onChange={setCurrentDoc} />
                     <InputField label="Division Office" name="originatingDivision" value={currentDoc?.originatingDivision || ''} onChange={setCurrentDoc} />
-                    <InputField label="Delivered By" name="deliveredBy" value={currentDoc?.deliveredBy || ''} onChange={setCurrentDoc} />
+                    {docType === 'incoming' && <InputField label="Delivered By" name="deliveredBy" value={currentDoc?.deliveredBy || ''} onChange={setCurrentDoc} />}
                     <div className="flex justify-between mt-6">
                         <button type="button" onClick={handleBack} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
-                           {batch.length === 0 ? 'Back to Methods' : 'Back to List'}
+                           {batch.length === 0 ? 'Back' : 'Back to List'}
                         </button>
                         <button type="submit" className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-2 px-4 rounded-lg">Review</button>
                     </div>
@@ -268,9 +436,9 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
                  {currentDoc?.scannedDocument && <img src={currentDoc.scannedDocument} alt="Document Preview" className="max-h-32 rounded border mb-2"/>}
                 <p><strong>Description:</strong> {currentDoc?.subject}</p>
                 <p><strong>File No:</strong> {currentDoc?.referenceNumber}</p>
-                <p><strong>Name:</strong> {currentDoc?.senderName}</p>
+                <p><strong>{docType === 'incoming' ? 'Sender' : 'Recipient'}:</strong> {currentDoc?.senderName}</p>
                 <p><strong>Division Office:</strong> {currentDoc?.originatingDivision}</p>
-                <p><strong>Delivered By:</strong> {currentDoc?.deliveredBy}</p>
+                {docType === 'incoming' && <p><strong>Delivered By:</strong> {currentDoc?.deliveredBy}</p>}
             </div>
              <div className="flex justify-between mt-6">
                 <button type="button" onClick={() => setMode('manual-form')} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Back to Edit</button>
@@ -280,7 +448,7 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
     );
     
     if (mode === 'scan-form') {
-        return <DocumentForm onSave={handleSaveFromScan} onCancel={handleBack} title="Scan Incoming Document" />
+        return <DocumentForm onSave={handleSaveFromScan} onCancel={handleBack} title={`Scan ${docType === 'incoming' ? 'Incoming' : 'Outgoing'} Document`} />
     }
     
     return (
@@ -289,11 +457,12 @@ const ManualIncomingBatchForm: React.FC<ManualIncomingBatchFormProps> = ({ start
                 <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 mr-4">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 </button>
-                <h2 className="text-2xl font-bold text-gray-800">Create Incoming Document Batch</h2>
+                <h2 className="text-2xl font-bold text-gray-800">Create {docType === 'incoming' ? 'Incoming' : 'Outgoing'} Document Batch</h2>
             </div>
             {mode === 'list' && renderListView()}
             {mode === 'manual-form' && renderManualForm()}
             {mode === 'review' && renderReview()}
+            {mode === 'select-incoming' && renderSelectIncomingView()}
         </div>
     );
 };
@@ -335,4 +504,4 @@ const ImagePicker = ({ image, onImageSelect }: {image: string | null, onImageSel
 };
 
 
-export default ManualIncomingBatchForm;
+export default BatchEntryForm;

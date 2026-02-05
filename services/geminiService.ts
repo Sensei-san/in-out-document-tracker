@@ -1,10 +1,5 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const schema = {
   type: Type.OBJECT,
@@ -35,6 +30,10 @@ const schema = {
 
 
 export const extractDocumentDetails = async (imageDataUrl: string): Promise<any> => {
+  // Always initialize GoogleGenAI inside the function to use the most up-to-date API key.
+  // Correctly using the named parameter apiKey from process.env.API_KEY.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   const base64Data = imageDataUrl.split(',')[1];
   
   const imagePart = {
@@ -58,7 +57,6 @@ export const extractDocumentDetails = async (imageDataUrl: string): Promise<any>
       },
     });
 
-    // FIX: Trim whitespace from the response text before parsing as JSON.
     const jsonString = response.text?.trim();
     if (!jsonString) {
       throw new Error("Empty response from API");

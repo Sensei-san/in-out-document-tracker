@@ -8,8 +8,9 @@ import DispatchForm from './components/DispatchForm';
 import AddMethodSelection from './components/AddMethodSelection';
 import ManualEntryForm from './components/ManualEntryForm';
 import AddIncomingMethod from './components/AddIncomingMethod';
-import ManualIncomingBatchForm from './components/ManualIncomingBatchForm';
+import BatchEntryForm from './components/BatchEntryForm';
 import FileUploadBatchForm from './components/FileUploadBatchForm';
+import BatchSigning from './components/BatchSigning';
 
 const App: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -74,41 +75,79 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const addDocument = (doc: Omit<Document, 'id' | 'status' | 'receivedDate' | 'statusHistory'>) => {
+  const addOutgoingDocument = (doc: Omit<Document, 'id' | 'status' | 'receivedDate' | 'statusHistory'>) => {
     const newDoc: Document = {
       ...doc,
       id: `doc_${Date.now()}`,
-      status: DocumentStatus.Received,
+      status: DocumentStatus.SentForSigning,
       receivedDate: new Date(),
-      statusHistory: [{ status: DocumentStatus.Received, timestamp: new Date() }],
+      statusHistory: [{ status: DocumentStatus.SentForSigning, timestamp: new Date() }],
       dispatchedDetails: null,
     };
     saveDocuments([...documents, newDoc]);
     setView({ name: 'dashboard' });
+    setActiveList('outgoing'); // Switch to outgoing list to see the new record
   };
 
   const saveManualDocuments = (docsToCreate: Partial<Document>[]) => {
-    const newDocs: Document[] = docsToCreate.map(d => {
-        const isOutgoing = d.status === DocumentStatus.Dispatched;
-        const timestamp = isOutgoing ? (d.dispatchedDetails?.dispatchedDate || new Date()) : new Date();
-        return {
-            id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            subject: d.subject || '',
-            senderName: d.senderName || '',
-            referenceNumber: d.referenceNumber || '',
-            originatingDivision: d.originatingDivision || '',
-            letterDate: d.letterDate || new Date(),
-            receivedDate: timestamp,
-            status: d.status || DocumentStatus.Received,
-            statusHistory: d.statusHistory || [{ status: d.status || DocumentStatus.Received, timestamp }],
-            scannedDocument: d.scannedDocument || '',
-            dispatchedDetails: d.dispatchedDetails || null,
-            deliveredBy: d.deliveredBy,
-        };
+    const timestamp = new Date();
+    const updatedDocsList = [...documents];
+    let outgoingCreated = false;
+
+    docsToCreate.forEach(d => {
+        if (d.id) {
+            // Update existing document (e.g. from Select from Incoming)
+            const index = updatedDocsList.findIndex(doc => doc.id === d.id);
+            if (index !== -1) {
+                const existing = updatedDocsList[index];
+                const newStatus = d.status || existing.status;
+                
+                updatedDocsList[index] = {
+                    ...existing,
+                    ...d,
+                    id: existing.id, // Ensure ID is preserved
+                    status: newStatus,
+                    statusHistory: d.status && d.status !== existing.status 
+                        ? [...existing.statusHistory, { status: d.status, timestamp }] 
+                        : existing.statusHistory
+                } as Document;
+                
+                if (newStatus === DocumentStatus.SentForSigning || newStatus === DocumentStatus.Dispatched) {
+                    outgoingCreated = true;
+                }
+            }
+        } else {
+            // Create new document
+            const newDoc: Document = {
+                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                subject: d.subject || '',
+                senderName: d.senderName || '',
+                referenceNumber: d.referenceNumber || '',
+                originatingDivision: d.originatingDivision || '',
+                letterDate: d.letterDate || new Date(),
+                receivedDate: timestamp,
+                status: d.status || DocumentStatus.Received,
+                statusHistory: d.statusHistory || [{ status: d.status || DocumentStatus.Received, timestamp }],
+                scannedDocument: d.scannedDocument || '',
+                dispatchedDetails: d.dispatchedDetails || null,
+                deliveredBy: d.deliveredBy,
+            };
+            updatedDocsList.push(newDoc);
+            if (newDoc.status === DocumentStatus.SentForSigning || newDoc.status === DocumentStatus.Dispatched) {
+                outgoingCreated = true;
+            }
+        }
     });
-    saveDocuments([...documents, ...newDocs]);
-    alert(`Successfully saved ${newDocs.length} document(s)!`);
+
+    saveDocuments(updatedDocsList);
     setView({ name: 'dashboard' });
+    
+    // Switch to appropriate tab
+    if (outgoingCreated) {
+        setActiveList('outgoing');
+    } else {
+        setActiveList('incoming');
+    }
   };
 
   const updateDocument = (updatedDoc: Document) => {
@@ -151,17 +190,56 @@ const App: React.FC = () => {
         return <AddMethodSelection setView={setView} />;
       case 'add-incoming-method':
         return <AddIncomingMethod setView={setView} />;
-      case 'upload-batch':
-        return <FileUploadBatchForm onSave={saveManualDocuments} onCancel={() => setView({ name: 'add-incoming-method' })} />;
+      case 'upload-batch': {
+        const currentDocType = view.docType;
+        return <FileUploadBatchForm 
+                  docType={currentDocType}
+                  onSave={(batch) => {
+                    if (currentDocType === 'outgoing') {
+                        setView({ name: 'batch-signing', batch });
+                    } else {
+                        saveManualDocuments(batch);
+                    }
+                  }} 
+                  onCancel={() => setView({ name: currentDocType === 'incoming' ? 'add-incoming-method' : 'add-method' })} 
+                />;
+      }
+      case 'batch-entry': {
+        const currentDocType = view.docType;
+        const currentStartMode = view.startMode;
+        return <BatchEntryForm 
+                  docType={currentDocType}
+                  startMode={currentStartMode}
+                  existingDocuments={documents}
+                  onSave={(batch) => {
+                    if (currentDocType === 'outgoing') {
+                        setView({ name: 'batch-signing', batch });
+                    } else {
+                        saveManualDocuments(batch);
+                    }
+                  }} 
+                  onCancel={() => setView({ name: currentDocType === 'incoming' ? 'add-incoming-method' : 'add-method' })} 
+                />;
+      }
+      case 'batch-signing':
+        return <BatchSigning 
+                    batch={view.batch} 
+                    onSave={saveManualDocuments} 
+                    onCancel={() => setView({ name: 'dashboard' })} 
+               />;
       case 'add':
-        return <DocumentForm onSave={addDocument} onCancel={() => setView({ name: 'add-method' })} />;
+        return <DocumentForm 
+                  onSave={addOutgoingDocument} 
+                  onCancel={() => setView({ name: 'add-method' })} 
+                  title="Scan New Outgoing Document"
+                />;
       case 'manual-entry':
-        return <ManualEntryForm onSave={saveManualDocuments} onCancel={() => setView({ name: 'add-method' })} />;
-      case 'manual-entry-incoming':
-        return <ManualIncomingBatchForm 
-                  startMode={view.startMode}
-                  onSave={saveManualDocuments} 
-                  onCancel={() => setView({ name: 'add-incoming-method' })} 
+        return <BatchEntryForm 
+                  docType="outgoing"
+                  startMode="manual"
+                  existingDocuments={documents}
+                  onSave={(batch) => setView({ name: 'batch-signing', batch })}
+                  onCancel={() => setView({ name: 'add-method' })}
                 />;
       case 'dispatch':
         const docToDispatch = getDocumentById(view.docId);
