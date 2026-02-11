@@ -1,7 +1,8 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { AIConfig } from "../types";
 
-const schema = {
+const getBaseSchema = () => ({
   type: Type.OBJECT,
   properties: {
     letterDate: { 
@@ -26,34 +27,64 @@ const schema = {
     },
   },
   required: ["letterDate", "senderName", "subject", "referenceNumber", "originatingDivision"]
-};
+});
 
-
-export const extractDocumentDetails = async (imageDataUrl: string): Promise<any> => {
-  // Always initialize GoogleGenAI inside the function to use the most up-to-date API key.
-  // Correctly using the named parameter apiKey from process.env.API_KEY.
+export const extractDocumentDetails = async (imageDataUrl: string, config?: AIConfig): Promise<any> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const base64Data = imageDataUrl.split(',')[1];
   
-  const imagePart = {
+  const contents: any[] = [];
+  
+  // Add training examples if they exist
+  let trainingInstruction = "";
+  if (config?.spatialExamples && config.spatialExamples.length > 0) {
+      trainingInstruction = "I have provided visual training examples to help you understand the document structure. ";
+      config.spatialExamples.forEach((example, idx) => {
+          const regionsText = example.regions.map(r => 
+              `${r.label} is at [${r.box.ymin}, ${r.box.xmin}, ${r.box.ymax}, ${r.box.xmax}]`
+          ).join(", ");
+          
+          trainingInstruction += `Example ${idx + 1}: Based on the regions defined: ${regionsText}. `;
+          
+          // Note: In a production app, we would ideally send the example images as parts. 
+          // For now, we rely on the textual description of the regions to guide the focus.
+      });
+  }
+
+  const systemInstructions = config?.systemInstructions 
+    ? `Contextual Rules: ${config.systemInstructions}. `
+    : "";
+
+  const mainImagePart = {
     inlineData: {
       data: base64Data,
       mimeType: 'image/jpeg',
     },
   };
 
-  const textPart = {
-      text: `Analyze the provided document image and extract the following details. If a specific piece of information cannot be found, return an empty string for that field.`
+  const finalSchema: any = getBaseSchema();
+  if (config?.customFields && config.customFields.length > 0) {
+      config.customFields.forEach(field => {
+          finalSchema.properties[field.label] = {
+              type: Type.STRING,
+              description: field.description
+          };
+          finalSchema.required.push(field.label);
+      });
   }
+
+  const promptText = `Analyze the provided document image and extract the following details. If a specific piece of information cannot be found, return an empty string. 
+  ${trainingInstruction}
+  ${systemInstructions}`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview', 
-      contents: { parts: [textPart, imagePart] },
+      contents: { parts: [{ text: promptText }, mainImagePart] },
       config: {
         responseMimeType: "application/json",
-        responseSchema: schema,
+        responseSchema: finalSchema,
       },
     });
 

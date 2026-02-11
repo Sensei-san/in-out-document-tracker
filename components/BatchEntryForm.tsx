@@ -75,6 +75,7 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
                 try {
                     const details = await extractDocumentDetails(imageDataUrl);
                     newDocs.push({
+                        id: `imported-${Date.now()}-${Math.random()}`,
                         subject: details.subject || '',
                         senderName: details.senderName || '',
                         referenceNumber: details.referenceNumber || '',
@@ -133,21 +134,22 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
         }
         const lastDoc = batch[batch.length - 1];
         setEditingIndex(null);
-        setCurrentDoc({ ...lastDoc });
-        // Don't copy the ID when copying for similar doc
-        if (currentDoc) delete (currentDoc as any).id;
+        setCurrentDoc({ ...lastDoc, id: undefined });
         setMode('manual-form');
     };
 
-    const handleEdit = (index: number) => {
+    const handleEdit = (e: React.MouseEvent, index: number) => {
+        e.stopPropagation();
         setEditingIndex(index);
         setCurrentDoc(batch[index]);
         setMode('manual-form');
     };
 
-    const handleRemove = (index: number) => {
+    const handleRemove = (e: React.MouseEvent, index: number) => {
+        e.stopPropagation();
         if (window.confirm('Are you sure you want to remove this document from the batch?')) {
-            setBatch(prev => prev.filter((_, i) => i !== index));
+            const newBatch = batch.filter((_, i) => i !== index);
+            setBatch(newBatch);
         }
     };
     
@@ -158,7 +160,11 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
     
     const handleSaveFromReview = () => {
         if (currentDoc) {
-            const docToSave = { ...currentDoc, status: initialStatus };
+            const docToSave = { 
+                ...currentDoc, 
+                id: currentDoc.id || `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                status: initialStatus 
+            };
              if (editingIndex !== null) {
                 const updatedBatch = [...batch];
                 updatedBatch[editingIndex] = docToSave;
@@ -175,6 +181,7 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
     const handleSaveFromScan = (doc: Omit<Document, 'id' | 'status' | 'receivedDate' | 'statusHistory' | 'dispatchedDetails'>) => {
         const newDoc: Partial<Document> = {
             ...doc,
+            id: `scan-${Date.now()}-${Math.random()}`,
             status: initialStatus
         };
         setBatch(prev => [...prev, newDoc]);
@@ -207,16 +214,13 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
 
     const handleBack = () => {
         if (batch.length === 0) {
-            // If the batch is empty, going back should take us to the entry method selection
             onCancel();
         } else {
-            // If we have items, go back to the current batch list
             setMode('list');
         }
     };
 
     const filteredIncoming = useMemo(() => {
-        // Filter for documents that are "Incoming" and not already in the current batch
         const batchIds = new Set(batch.map(b => b.id).filter(Boolean));
         return existingDocuments.filter(d => {
             const isIncoming = d.status === DocumentStatus.Received || d.status === DocumentStatus.ReturnedFromSigning;
@@ -247,36 +251,36 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
         <div className="w-full">
             {batch.length > 0 ? (
                 <>
-                    <h3 className="text-xl font-semibold text-gray-700 mb-4">Documents in Current Batch</h3>
-                    <div className="overflow-x-auto bg-white rounded-lg shadow">
-                         <table className="min-w-full divide-y divide-gray-200">
-                             <thead className="bg-gray-50">
+                    <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4">Documents in Current Batch</h3>
+                    <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
+                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                             <thead className="bg-gray-50 dark:bg-gray-900/50">
                                 <tr>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">S/N</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">File No</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{docType === 'incoming' ? 'Sender' : 'Recipient'}</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Division Office</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">S/N</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Description</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">File No</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{docType === 'incoming' ? 'Sender' : 'Recipient'}</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Division Office</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                                 </tr>
                              </thead>
-                             <tbody className="bg-white divide-y divide-gray-200">
+                             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 {batch.map((doc, index) => (
-                                    <tr key={doc.id || index}>
-                                        <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
-                                        <td className="px-4 py-2 text-sm text-gray-900 truncate max-w-xs">
+                                    <tr key={doc.id || `batch-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{index + 1}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100 truncate max-w-xs">
                                             {doc.subject}
-                                            {doc.id && <span className="ml-2 px-1 bg-blue-100 text-blue-700 text-[10px] rounded uppercase">Imported</span>}
+                                            {doc.id && (doc.id.includes('imported') || doc.id.includes('scan')) && <span className="ml-2 px-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] rounded uppercase">Imported</span>}
                                         </td>
-                                        <td className="px-4 py-2 text-sm text-gray-500">{doc.referenceNumber}</td>
-                                        <td className="px-4 py-2 text-sm text-gray-900">{doc.senderName}</td>
-                                        <td className="px-4 py-2 text-sm text-gray-500">{doc.originatingDivision}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{doc.referenceNumber}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{doc.senderName}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{doc.originatingDivision}</td>
                                         <td className="px-4 py-2 text-sm">
                                             <div className="flex items-center space-x-3">
-                                                <button onClick={() => handleEdit(index)} className="text-blue-600 hover:text-blue-900" title="Edit">
+                                                <button onClick={(e) => handleEdit(e, index)} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Edit">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                                                 </button>
-                                                <button onClick={() => handleRemove(index)} className="text-red-600 hover:text-red-900" title="Remove">
+                                                <button onClick={(e) => handleRemove(e, index)} className="text-red-600 dark:text-red-400 hover:text-red-900 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors" title="Remove">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                     </svg>
@@ -290,44 +294,37 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
                     </div>
                 </>
             ) : (
-                <div className="text-center py-10 px-6 bg-gray-50 rounded-lg">
-                    <h3 className="text-lg font-medium text-gray-800">Your batch is empty.</h3>
-                    <p className="text-gray-500 mt-1">Start by adding your first {docType} document below.</p>
+                <div className="text-center py-10 px-6 bg-gray-50 dark:bg-gray-900/30 rounded-lg border-2 border-dashed dark:border-gray-700">
+                    <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200">Your batch is empty.</h3>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">Start by adding your first {docType} document below.</p>
                 </div>
             )}
 
-            {isProcessingUpload && (
-                <div className="mt-6 flex justify-center items-center flex-col">
-                    <Spinner />
-                    <p className="text-gray-600 mt-2">Processing uploads, please wait...</p>
-                </div>
-            )}
-
-            <div className="mt-6 border-t pt-6">
-                 <p className="text-sm font-semibold text-gray-600 mb-3 text-center">Add more documents to the list:</p>
+            <div className="mt-6 border-t dark:border-gray-700 pt-6">
+                 <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3 text-center">Add more documents to the list:</p>
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                      <input type="file" multiple accept="image/*,application/pdf" ref={uploadFileRef} onChange={handleFileSelected} className="hidden" />
-                     <button onClick={handleStartManualAdd} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add Manually</button>
-                     <button onClick={handleStartScanAdd} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add by Scan</button>
-                     <button onClick={() => uploadFileRef.current?.click()} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add by Upload</button>
+                     <button onClick={handleStartManualAdd} className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border dark:border-gray-700 flex items-center justify-center text-sm font-semibold text-gray-700 dark:text-gray-200">Add Manually</button>
+                     <button onClick={handleStartScanAdd} className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border dark:border-gray-700 flex items-center justify-center text-sm font-semibold text-gray-700 dark:text-gray-200">Add by Scan</button>
+                     <button onClick={() => uploadFileRef.current?.click()} className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border dark:border-gray-700 flex items-center justify-center text-sm font-semibold text-gray-700 dark:text-gray-200">Add by Upload</button>
                      
                      {docType === 'outgoing' && (
-                        <button onClick={handleStartSelectIncoming} className="p-3 bg-blue-50 text-blue-700 rounded-lg shadow hover:shadow-md transition-shadow border border-blue-200 flex items-center justify-center text-sm font-bold">
+                        <button onClick={handleStartSelectIncoming} className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg shadow hover:shadow-md transition-shadow border border-blue-200 dark:border-blue-800/50 flex items-center justify-center text-sm font-bold">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                             Select from Incoming
                         </button>
                      )}
 
-                     <button onClick={handleAddSimilar} className="p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow border flex items-center justify-center text-sm font-semibold text-gray-700">Add Similar Doc</button>
+                     <button onClick={handleAddSimilar} className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border dark:border-gray-700 flex items-center justify-center text-sm font-semibold text-gray-700 dark:text-gray-200">Add Similar Doc</button>
                  </div>
             </div>
 
             <div className="flex justify-between mt-8">
-                <button onClick={onCancel} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancel Batch</button>
+                <button onClick={onCancel} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-bold py-2 px-4 rounded-lg">Cancel Batch</button>
                 <button 
                     onClick={() => onSave(batch)} 
                     disabled={batch.length === 0 || isProcessingUpload} 
-                    className={`font-bold py-2 px-6 rounded-lg shadow-md transition-all ${batch.length === 0 || isProcessingUpload ? 'bg-gray-400 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-dark text-white'}`}
+                    className={`font-bold py-2 px-6 rounded-lg shadow-md transition-all ${batch.length === 0 || isProcessingUpload ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-brand-primary hover:bg-brand-dark text-white'}`}
                 >
                     {submitButtonText}
                 </button>
@@ -337,127 +334,94 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
     
     const renderSelectIncomingView = () => (
         <div className="w-full">
-            <h3 className="text-xl font-bold mb-4">Select from Incoming List</h3>
+            <h3 className="text-xl font-bold mb-4 dark:text-gray-100">Select from Incoming List</h3>
             <div className="mb-4">
-                <div className="relative">
-                    <input 
-                        type="text" 
-                        placeholder="Search incoming documents..." 
-                        value={selectionSearch}
-                        onChange={(e) => setSelectionSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-brand-primary"
-                    />
-                    <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                </div>
+                <input 
+                    type="text" 
+                    placeholder="Search incoming documents..." 
+                    value={selectionSearch}
+                    onChange={(e) => setSelectionSearch(e.target.value)}
+                    className="w-full p-2 border rounded-lg focus:ring-brand-primary dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                />
             </div>
 
-            <div className="max-h-[50vh] overflow-y-auto border rounded-lg bg-gray-50">
+            <div className="max-h-96 overflow-y-auto border rounded-lg bg-gray-50 dark:bg-gray-900/30 dark:border-gray-700">
                 {filteredIncoming.length > 0 ? (
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100 sticky top-0">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-100 dark:bg-gray-800">
                             <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Select</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ref No</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Select</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subject</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ref No</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {filteredIncoming.map(doc => (
-                                <tr 
-                                    key={doc.id} 
-                                    className={`cursor-pointer hover:bg-blue-50 ${selectedIncomingIds.has(doc.id) ? 'bg-blue-50' : ''}`}
-                                    onClick={() => toggleIncomingSelection(doc.id)}
-                                >
+                                <tr key={doc.id} className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20" onClick={() => toggleIncomingSelection(doc.id)}>
                                     <td className="px-4 py-2">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedIncomingIds.has(doc.id)} 
-                                            readOnly 
-                                            className="h-4 w-4 text-brand-primary border-gray-300 rounded"
-                                        />
+                                        <input type="checkbox" checked={selectedIncomingIds.has(doc.id)} readOnly className="h-4 w-4 rounded dark:bg-gray-700 dark:border-gray-600" />
                                     </td>
-                                    <td className="px-4 py-2 text-sm text-gray-900">{doc.subject}</td>
-                                    <td className="px-4 py-2 text-sm text-gray-500">{doc.referenceNumber}</td>
-                                    <td className="px-4 py-2 text-sm text-gray-900">{doc.senderName}</td>
+                                    <td className="px-4 py-2 text-sm dark:text-gray-200">{doc.subject}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{doc.referenceNumber}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 ) : (
-                    <div className="p-8 text-center text-gray-500 italic">
-                        No available incoming documents found matching your criteria.
-                    </div>
+                    <div className="p-8 text-center text-gray-500 dark:text-gray-400 italic">No matching incoming documents found.</div>
                 )}
             </div>
 
             <div className="flex justify-between mt-6">
-                <button onClick={() => setMode('list')} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg">Back to Batch</button>
-                <button 
-                    onClick={confirmSelectIncoming} 
-                    disabled={selectedIncomingIds.size === 0}
-                    className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-400"
-                >
-                    Add {selectedIncomingIds.size > 0 ? `(${selectedIncomingIds.size})` : ''} to Batch
-                </button>
+                <button onClick={() => setMode('list')} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 py-2 px-6 rounded-lg font-bold">Back</button>
+                <button onClick={confirmSelectIncoming} disabled={selectedIncomingIds.size === 0} className="bg-brand-primary hover:bg-brand-dark text-white py-2 px-6 rounded-lg font-bold disabled:bg-gray-400">Add Selected to Batch</button>
             </div>
         </div>
     );
 
     const renderManualForm = () => (
-        <div>
-            <h3 className="text-xl font-bold mb-4">{editingIndex !== null ? 'Edit' : 'Add'} Document Details</h3>
-            <div className="space-y-4">
-                <ImagePicker 
-                    image={currentDoc?.scannedDocument || null} 
-                    onImageSelect={(dataUrl: string) => setCurrentDoc(prev => prev ? {...prev, scannedDocument: dataUrl} : {scannedDocument: dataUrl})} 
-                />
-                 <form onSubmit={handleReviewManualForm} className="space-y-4">
-                    <InputField label="Description" name="subject" value={currentDoc?.subject || ''} onChange={setCurrentDoc} />
-                    <InputField label="File No" name="referenceNumber" value={currentDoc?.referenceNumber || ''} onChange={setCurrentDoc} />
-                    <InputField label={docType === 'incoming' ? 'Sender Name' : 'Recipient Name'} name="senderName" value={currentDoc?.senderName || ''} onChange={setCurrentDoc} />
-                    <InputField label="Division Office" name="originatingDivision" value={currentDoc?.originatingDivision || ''} onChange={setCurrentDoc} />
-                    {docType === 'incoming' && <InputField label="Delivered By" name="deliveredBy" value={currentDoc?.deliveredBy || ''} onChange={setCurrentDoc} />}
-                    <div className="flex justify-between mt-6">
-                        <button type="button" onClick={handleBack} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
-                           {batch.length === 0 ? 'Back' : 'Back to List'}
-                        </button>
-                        <button type="submit" className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-2 px-4 rounded-lg">Review</button>
-                    </div>
-                </form>
-            </div>
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold dark:text-gray-100">{editingIndex !== null ? 'Edit' : 'Add'} Document Details</h3>
+            <ImagePicker image={currentDoc?.scannedDocument || null} onImageSelect={(url) => setCurrentDoc(prev => ({...prev, scannedDocument: url}))} />
+            <form onSubmit={handleReviewManualForm} className="space-y-4">
+                <InputField label="Description" name="subject" value={currentDoc?.subject || ''} onChange={(val) => setCurrentDoc(prev => ({...prev, subject: val}))} />
+                <InputField label="File No" name="referenceNumber" value={currentDoc?.referenceNumber || ''} onChange={(val) => setCurrentDoc(prev => ({...prev, referenceNumber: val}))} />
+                <InputField label={docType === 'incoming' ? 'Sender' : 'Recipient'} name="senderName" value={currentDoc?.senderName || ''} onChange={(val) => setCurrentDoc(prev => ({...prev, senderName: val}))} />
+                <InputField label="Division" name="originatingDivision" value={currentDoc?.originatingDivision || ''} onChange={(val) => setCurrentDoc(prev => ({...prev, originatingDivision: val}))} />
+                <div className="flex justify-between mt-6">
+                    <button type="button" onClick={() => setMode('list')} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 py-2 px-6 rounded-lg font-bold">Cancel</button>
+                    <button type="submit" className="bg-brand-primary hover:bg-brand-dark text-white py-2 px-6 rounded-lg font-bold">Review</button>
+                </div>
+            </form>
         </div>
     );
-    
+
     const renderReview = () => (
-        <div>
-            <h3 className="text-xl font-bold mb-4">Review Details</h3>
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                 {currentDoc?.scannedDocument && <img src={currentDoc.scannedDocument} alt="Document Preview" className="max-h-32 rounded border mb-2"/>}
-                <p><strong>Description:</strong> {currentDoc?.subject}</p>
-                <p><strong>File No:</strong> {currentDoc?.referenceNumber}</p>
-                <p><strong>{docType === 'incoming' ? 'Sender' : 'Recipient'}:</strong> {currentDoc?.senderName}</p>
-                <p><strong>Division Office:</strong> {currentDoc?.originatingDivision}</p>
-                {docType === 'incoming' && <p><strong>Delivered By:</strong> {currentDoc?.deliveredBy}</p>}
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold dark:text-gray-100">Review Details</h3>
+            <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg border dark:border-gray-700">
+                <p className="mb-2"><strong className="text-gray-600 dark:text-gray-400 uppercase text-[10px]">Description:</strong> <span className="dark:text-gray-100 block font-semibold">{currentDoc?.subject}</span></p>
+                <p className="mb-2"><strong className="text-gray-600 dark:text-gray-400 uppercase text-[10px]">Ref No:</strong> <span className="dark:text-gray-100 block font-mono">{currentDoc?.referenceNumber}</span></p>
+                <p className="mb-2"><strong className="text-gray-600 dark:text-gray-400 uppercase text-[10px]">Party:</strong> <span className="dark:text-gray-100 block font-bold text-brand-primary dark:text-brand-secondary">{currentDoc?.senderName}</span></p>
             </div>
-             <div className="flex justify-between mt-6">
-                <button type="button" onClick={() => setMode('manual-form')} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Back to Edit</button>
-                <button type="button" onClick={handleSaveFromReview} className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-2 px-4 rounded-lg">Confirm & Add to List</button>
+            <div className="flex justify-between mt-6">
+                <button onClick={() => setMode('manual-form')} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 py-2 px-6 rounded-lg font-bold">Edit</button>
+                <button onClick={handleSaveFromReview} className="bg-brand-primary hover:bg-brand-dark text-white py-2 px-6 rounded-lg font-bold">Add to Batch</button>
             </div>
         </div>
     );
-    
+
     if (mode === 'scan-form') {
         return <DocumentForm onSave={handleSaveFromScan} onCancel={handleBack} title={`Scan ${docType === 'incoming' ? 'Incoming' : 'Outgoing'} Document`} />
     }
     
     return (
-        <div className="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-lg">
+        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 p-4 sm:p-8 rounded-lg shadow-lg border dark:border-gray-700 transition-colors">
              <div className="flex items-center mb-6">
-                <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 mr-4">
+                <button onClick={onCancel} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mr-4 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 </button>
-                <h2 className="text-2xl font-bold text-gray-800">Create {docType === 'incoming' ? 'Incoming' : 'Outgoing'} Document Batch</h2>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Create {docType === 'incoming' ? 'Incoming' : 'Outgoing'} Document Batch</h2>
             </div>
             {mode === 'list' && renderListView()}
             {mode === 'manual-form' && renderManualForm()}
@@ -467,16 +431,22 @@ const BatchEntryForm: React.FC<BatchEntryFormProps> = ({ docType, startMode, exi
     );
 };
 
-const InputField = ({ label, name, value, onChange }: { label: string, name: string, value: string, onChange: React.Dispatch<any> }) => (
+const InputField = ({ label, name, value, onChange }: { label: string, name: string, value: string, onChange: (val: string) => void }) => (
     <div>
-        <label className="block text-sm font-medium text-gray-700">{label}</label>
-        <input type="text" name={name} value={value} onChange={e => onChange((prev:any) => ({...prev, [name]: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+        <input 
+            type="text" 
+            value={value} 
+            onChange={e => onChange(e.target.value)} 
+            placeholder={`Enter ${label}...`}
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500 shadow-sm focus:border-brand-primary focus:ring-brand-primary sm:text-sm p-3 border outline-none transition-colors" 
+            required 
+        />
     </div>
 );
 
 const ImagePicker = ({ image, onImageSelect }: {image: string | null, onImageSelect: (dataUrl: string) => void}) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const reader = new FileReader();
@@ -484,24 +454,29 @@ const ImagePicker = ({ image, onImageSelect }: {image: string | null, onImageSel
             reader.readAsDataURL(e.target.files[0]);
         }
     };
-
     return (
         <div className="w-full">
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full aspect-video border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-brand-primary transition-colors">
+            <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()} 
+                className="w-full aspect-video border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900/50 hover:border-brand-primary dark:hover:border-brand-primary transition-all group"
+            >
                 {image ? (
-                    <img src={image} alt="Document preview" className="w-full h-full object-contain rounded-lg" />
+                    <img src={image} alt="Preview" className="w-full h-full object-contain rounded-lg" />
                 ) : (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        <span className="mt-2 text-sm font-semibold">Add Document Photo</span>
-                        <span className="text-xs">(Optional)</span>
-                    </>
+                    <div className="flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-300 dark:text-gray-600 group-hover:text-brand-primary transition-colors mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-sm font-bold group-hover:text-brand-primary transition-colors">Add Document Photo</span>
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Camera or Upload</p>
+                    </div>
                 )}
             </button>
         </div>
     );
 };
-
 
 export default BatchEntryForm;

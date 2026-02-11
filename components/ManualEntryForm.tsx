@@ -25,7 +25,7 @@ const ProgressIndicator = ({ steps, currentStep }: { steps: string[], currentSte
 );
 
 const NavButton = ({ onClick, direction, text }: { onClick: () => void, direction: 'back' | 'next', text: string }) => (
-    <button onClick={onClick} className="flex items-center space-x-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-lg transition-colors">
+    <button onClick={onClick} className="flex items-center space-x-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-bold rounded-lg transition-colors">
         {direction === 'back' && <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>}
         <span>{text}</span>
         {direction === 'next' && <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>}
@@ -46,15 +46,18 @@ const ImagePicker = ({ image, onImageSelect }: {image: string | null, onImageSel
     return (
         <div className="w-full">
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full aspect-video border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-brand-primary transition-colors">
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full aspect-video border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900/50 hover:border-brand-primary dark:hover:border-brand-primary transition-all group">
                 {image ? (
                     <img src={image} alt="Document preview" className="w-full h-full object-contain rounded-lg" />
                 ) : (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        <span className="mt-2 text-sm font-semibold">Add Document Photo</span>
-                        <span className="text-xs">(Optional)</span>
-                    </>
+                    <div className="flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-300 dark:text-gray-600 group-hover:text-brand-primary transition-colors mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="mt-2 text-sm font-bold group-hover:text-brand-primary transition-colors">Add Document Photo</span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Camera or Upload</span>
+                    </div>
                 )}
             </button>
         </div>
@@ -137,9 +140,9 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
         return (
             <div className="w-full">
                 <div className="flex justify-center mb-6">
-                    <div className="relative bg-gray-200 rounded-full p-1 flex">
-                        <button onClick={() => setDocType('incoming')} className={`px-6 py-2 text-sm font-bold rounded-full transition-colors ${isIncoming ? 'bg-white shadow' : 'text-gray-600'}`}>Incoming</button>
-                        <button onClick={() => setDocType('outgoing')} className={`px-6 py-2 text-sm font-bold rounded-full transition-colors ${!isIncoming ? 'bg-white shadow' : 'text-gray-600'}`}>Outgoing</button>
+                    <div className="relative bg-gray-200 dark:bg-gray-700 rounded-full p-1 flex">
+                        <button onClick={() => setDocType('incoming')} className={`px-6 py-2 text-sm font-bold rounded-full transition-colors ${isIncoming ? 'bg-white dark:bg-gray-800 shadow dark:text-brand-secondary' : 'text-gray-600 dark:text-gray-400'}`}>Incoming</button>
+                        <button onClick={() => setDocType('outgoing')} className={`px-6 py-2 text-sm font-bold rounded-full transition-colors ${!isIncoming ? 'bg-white dark:bg-gray-800 shadow dark:text-brand-secondary' : 'text-gray-600 dark:text-gray-400'}`}>Outgoing</button>
                     </div>
                 </div>
 
@@ -165,7 +168,7 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
                 
                 <div className="flex justify-between mt-8">
                     <NavButton onClick={onCancel} direction="back" text="Back to Methods" />
-                    <button onClick={handleNext} disabled={!isFormValid} className="flex items-center space-x-2 px-4 py-2 bg-brand-primary hover:bg-brand-dark text-white font-bold rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <button onClick={handleNext} disabled={!isFormValid} className="flex items-center space-x-2 px-6 py-2 bg-brand-primary hover:bg-brand-dark text-white font-bold rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md">
                         <span>Next</span>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                     </button>
@@ -179,11 +182,11 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
         const allData = docType === 'outgoing' ? [...batch, currentData] : [currentData];
         return (
              <div className="w-full">
-                <h3 className="text-xl font-bold text-center mb-4">Review Your Details</h3>
-                <div className="max-h-96 overflow-y-auto space-y-4 bg-gray-100 p-4 rounded-lg">
+                <h3 className="text-xl font-bold text-center mb-4 dark:text-gray-100">Review Your Details</h3>
+                <div className="max-h-96 overflow-y-auto space-y-4 bg-gray-100 dark:bg-gray-900/50 p-4 rounded-lg border dark:border-gray-700">
                     {allData.map((data, index) => (
-                        <div key={index} className="bg-white p-4 rounded shadow">
-                           {docType === 'outgoing' && <p className="font-bold mb-2">Document {index + 1}</p>}
+                        <div key={index} className="bg-white dark:bg-gray-800 p-6 rounded shadow border dark:border-gray-700">
+                           {docType === 'outgoing' && <p className="font-bold mb-4 dark:text-brand-secondary border-b dark:border-gray-700 pb-2 uppercase text-xs tracking-widest">Document {index + 1}</p>}
                            <DetailView data={data} type={docType} />
                         </div>
                     ))}
@@ -192,11 +195,11 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
                     <NavButton onClick={handleBack} direction="back" text="Back" />
                      <div className="flex space-x-4">
                         {docType === 'incoming' ? (
-                            <button onClick={handleSave} className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors">Done</button>
+                            <button onClick={handleSave} className="px-8 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg shadow-md transition-all active:scale-95">Done</button>
                         ) : (
                             <>
-                                <button onClick={handleAddMore} className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold rounded-lg transition-colors">Add More to List</button>
-                                <button onClick={handleNext} className="px-4 py-2 bg-brand-primary hover:bg-brand-dark text-white font-bold rounded-lg transition-colors">Continue to Signing</button>
+                                <button onClick={handleAddMore} className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-300 font-bold rounded-lg transition-colors border dark:border-blue-800/50">Add More to List</button>
+                                <button onClick={handleNext} className="px-6 py-2 bg-brand-primary hover:bg-brand-dark text-white font-bold rounded-lg shadow-md transition-all active:scale-95">Continue to Signing</button>
                             </>
                         )}
                     </div>
@@ -207,20 +210,20 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
     
     const renderSigningStep = () => (
         <div className="w-full">
-             <h3 className="text-xl font-bold text-center mb-4">Sign & Dispatch</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+             <h3 className="text-xl font-bold text-center mb-4 dark:text-gray-100">Sign & Dispatch</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
                      <InputField label="Recipient Name" name="recipientName" value={formData.recipientName || ''} onChange={setFormData} />
                      <InputField label="Dispatched By (Your Name)" name="dispatchedBy" value={formData.dispatchedBy || ''} onChange={setFormData} />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Signature</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Recipient Signature</label>
                     <SignatureCanvas ref={signatureCanvasRef} />
                 </div>
             </div>
             <div className="flex justify-between mt-8">
                 <NavButton onClick={handleBack} direction="back" text="Back" />
-                <button onClick={handleSave} disabled={!formData.recipientName || !formData.dispatchedBy} className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors disabled:bg-gray-400">Done</button>
+                <button onClick={handleSave} disabled={!formData.recipientName || !formData.dispatchedBy} className="px-8 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg shadow-md transition-all active:scale-95 disabled:bg-gray-400">Done</button>
             </div>
         </div>
     );
@@ -237,14 +240,14 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
     }
 
     return (
-        <div className="max-w-2xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-lg">
+        <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 p-4 sm:p-8 rounded-lg shadow-lg border dark:border-gray-700 transition-colors">
              <div className="flex items-center mb-6">
-                <button onClick={step === 1 ? onCancel : handleBack} className="text-gray-500 hover:text-gray-700 mr-4">
+                <button onClick={step === 1 ? onCancel : handleBack} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mr-4 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
                 </button>
-                 <h2 className="text-2xl font-bold text-gray-800">Enter Document Manually</h2>
+                 <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Enter Document Manually</h2>
             </div>
             <ProgressIndicator steps={stepsConfig[docType]} currentStep={step} />
             {renderStep()}
@@ -254,29 +257,41 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSave, onCancel }) =
 
 const InputField = ({ label, name, value, onChange }: { label: string, name: string, value: string, onChange: React.Dispatch<any> }) => (
     <div>
-        <label className="block text-sm font-medium text-gray-700">{label}</label>
-        <input type="text" name={name} value={value} onChange={e => onChange((prev:any) => ({...prev, [name]: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required />
+        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">{label}</label>
+        <input 
+            type="text" 
+            name={name} 
+            value={value} 
+            placeholder={`Enter ${label}...`}
+            onChange={e => onChange((prev:any) => ({...prev, [name]: e.target.value}))} 
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500 shadow-sm focus:border-brand-primary focus:ring-brand-primary sm:text-sm p-3 border outline-none transition-colors" 
+            required 
+        />
     </div>
 );
 
 const DetailView = ({ data, type }: { data: any, type: 'incoming' | 'outgoing' }) => (
-    <div className="text-sm space-y-1">
-        {data.docImage && <img src={data.docImage} className="max-h-24 rounded border mb-2" />}
+    <div className="text-sm space-y-2">
+        {data.docImage && (
+            <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded border dark:border-gray-700 mb-4">
+                <img src={data.docImage} className="max-h-48 rounded mx-auto object-contain" />
+            </div>
+        )}
         {type === 'incoming' ? (
-            <>
-                <p><strong>Description:</strong> {data.description}</p>
-                <p><strong>File No:</strong> {data.fileNo}</p>
-                <p><strong>Name:</strong> {data.name}</p>
-                <p><strong>Division Office:</strong> {data.divisionOffice}</p>
-                <p><strong>Delivered By:</strong> {data.deliveredBy}</p>
-            </>
+            <div className="grid grid-cols-1 gap-2">
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Description:</strong> <span className="dark:text-gray-100 font-semibold">{data.description}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">File No:</strong> <span className="dark:text-gray-100 font-mono">{data.fileNo}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Name:</strong> <span className="dark:text-gray-100 font-bold">{data.name}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Division Office:</strong> <span className="dark:text-gray-100">{data.divisionOffice}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Delivered By:</strong> <span className="dark:text-gray-100 italic">{data.deliveredBy}</span></p>
+            </div>
         ) : (
-             <>
-                <p><strong>Minuted To:</strong> {data.minutedTo}</p>
-                <p><strong>Description:</strong> {data.description}</p>
-                <p><strong>File No:</strong> {data.fileNo}</p>
-                <p><strong>Author Name:</strong> {data.name}</p>
-            </>
+             <div className="grid grid-cols-1 gap-2">
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Minuted To:</strong> <span className="dark:text-gray-100 font-bold text-brand-primary dark:text-brand-secondary">{data.minutedTo}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Description:</strong> <span className="dark:text-gray-100 font-semibold">{data.description}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">File No:</strong> <span className="dark:text-gray-100 font-mono">{data.fileNo}</span></p>
+                <p><strong className="text-gray-500 dark:text-gray-400 uppercase text-[10px]">Author Name:</strong> <span className="dark:text-gray-100">{data.name}</span></p>
+            </div>
         )}
     </div>
 );

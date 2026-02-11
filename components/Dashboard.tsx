@@ -22,10 +22,11 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
     if (!searchTerm) {
       return documents;
     }
+    const term = searchTerm.toLowerCase();
     return documents.filter(doc => 
-        doc.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.senderName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (doc.referenceNumber && doc.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+        doc.subject.toLowerCase().includes(term) ||
+        doc.senderName.toLowerCase().includes(term) ||
+        (doc.referenceNumber && doc.referenceNumber.toLowerCase().includes(term))
     );
   }, [documents, searchTerm]);
 
@@ -48,21 +49,26 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
     });
   };
 
+  // Improved filtering: 
+  // Incoming list shows everything that started as Received
   const incomingDocs = useMemo(() => {
-    // Show documents that originated as Incoming (first status was Received)
     const filtered = filteredDocuments.filter(doc => 
-      doc.statusHistory && doc.statusHistory.length > 0 && doc.statusHistory[0].status === DocumentStatus.Received
+      doc.status === DocumentStatus.Received || 
+      (doc.statusHistory && doc.statusHistory.some(h => h.status === DocumentStatus.Received))
     );
     return sortDocuments(filtered, 'incoming');
   }, [filteredDocuments, sortBy]);
 
+  // Outgoing list shows docs that have moved beyond registry
   const outgoingDocs = useMemo(() => {
-     // Show documents that originated as Outgoing (first status was SentForSigning)
-     // OR are currently Dispatched/Archived
      const filtered = filteredDocuments.filter(doc => 
-        (doc.statusHistory && doc.statusHistory.length > 0 && doc.statusHistory[0].status === DocumentStatus.SentForSigning) ||
-        doc.status === DocumentStatus.Dispatched || 
-        doc.status === DocumentStatus.Archived
+        doc.status !== DocumentStatus.Received ||
+        (doc.statusHistory && doc.statusHistory.some(h => 
+          h.status === DocumentStatus.SentForSigning || 
+          h.status === DocumentStatus.Dispatched || 
+          h.status === DocumentStatus.Archived ||
+          h.status === DocumentStatus.ReturnedFromSigning
+        ))
      );
      return sortDocuments(filtered, 'outgoing');
   }, [filteredDocuments, sortBy]);
@@ -71,22 +77,26 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
   const getFullStatusBadge = (status: DocumentStatus) => {
     switch (status) {
       case DocumentStatus.Received:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Received</span>;
+        return <span className="px-2 inline-flex text-[10px] leading-5 font-bold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 uppercase tracking-tighter">Received</span>;
       case DocumentStatus.SentForSigning:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Signing</span>;
+        return <span className="px-2 inline-flex text-[10px] leading-5 font-bold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 uppercase tracking-tighter">Signing</span>;
       case DocumentStatus.ReturnedFromSigning:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Signed</span>;
+        return <span className="px-2 inline-flex text-[10px] leading-5 font-bold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 uppercase tracking-tighter">Signed</span>;
       case DocumentStatus.Dispatched:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Dispatched</span>;
+        return <span className="px-2 inline-flex text-[10px] leading-5 font-bold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 uppercase tracking-tighter">Dispatched</span>;
       case DocumentStatus.Archived:
-         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Archived</span>;
+         return <span className="px-2 inline-flex text-[10px] leading-5 font-bold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 uppercase tracking-tighter">Archived</span>;
       default:
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Unknown</span>;
+        return <span className="px-2 inline-flex text-[10px] leading-5 font-bold rounded-full bg-gray-100 text-gray-800 uppercase tracking-tighter">Unknown</span>;
     }
   };
   
-  const handleSigningOfficeToggle = (docId: string, isChecked: boolean) => {
-    updateDocumentProperty(docId, { signingOffice: isChecked ? "DCMD's Office" : undefined });
+  const handleSigningOfficeToggle = (docId: string, isCurrentlyIn: boolean) => {
+    updateDocumentProperty(docId, { 
+        signingOffice: !isCurrentlyIn ? "DCMD's Office" : undefined,
+        location: !isCurrentlyIn ? "DCMD's Office" : "Registry",
+        locationUpdatedAt: new Date()
+    });
   };
 
   const isSigned = (status: DocumentStatus) => 
@@ -97,171 +107,172 @@ const Dashboard: React.FC<DashboardProps> = ({ documents, setView, searchTerm, a
   const isDispatched = (status: DocumentStatus) => 
       status === DocumentStatus.Dispatched || status === DocumentStatus.Archived;
 
-  const handleSignedToggle = (docId: string, isChecked: boolean) => {
+  const handleSignedToggle = (docId: string, isCurrentlySigned: boolean) => {
     updateDocumentProperty(docId, { 
-      status: isChecked ? DocumentStatus.ReturnedFromSigning : DocumentStatus.SentForSigning 
+      status: !isCurrentlySigned ? DocumentStatus.ReturnedFromSigning : DocumentStatus.SentForSigning 
     });
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
+        <div>
+            <h2 className="text-3xl font-black text-gray-800 dark:text-gray-100 tracking-tight">Dashboard</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Manage daily registry workflow and tracking.</p>
+        </div>
         <div className="flex flex-col sm:flex-row gap-4">
            <button
             onClick={() => setView({ name: 'add-incoming-method' })}
-            className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out flex items-center justify-center text-lg"
+            className="bg-brand-primary hover:bg-brand-dark text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out flex items-center justify-center text-sm"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            <span className="ml-2">Add New Incoming</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Add New Incoming
           </button>
           <button
             onClick={() => setView({ name: 'add-method' })}
-            className="bg-brand-secondary hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out flex items-center justify-center text-lg"
+            className="bg-brand-secondary hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out flex items-center justify-center text-sm"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-            <span className="ml-2">Add New Outgoing</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            Add New Outgoing
           </button>
         </div>
       </div>
 
-      {/* Tab buttons */}
-      <div className="flex space-x-2 border-b">
+      <div className="flex space-x-1 p-1 bg-gray-100 dark:bg-gray-900 rounded-xl w-fit border dark:border-gray-700">
         <button
             onClick={() => setActiveList('incoming')}
-            className={`py-2 px-4 text-lg font-semibold ${activeList === 'incoming' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`py-2 px-6 text-sm font-bold rounded-lg transition-all ${activeList === 'incoming' ? 'bg-white dark:bg-gray-800 text-brand-primary shadow-sm dark:text-brand-secondary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
         >
-            Incoming
+            Incoming Register
         </button>
         <button
             onClick={() => setActiveList('outgoing')}
-            className={`py-2 px-4 text-lg font-semibold ${activeList === 'outgoing' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`py-2 px-6 text-sm font-bold rounded-lg transition-all ${activeList === 'outgoing' ? 'bg-white dark:bg-gray-800 text-brand-primary shadow-sm dark:text-brand-secondary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
         >
-            Outgoing
+            Outgoing Register
         </button>
       </div>
 
-      <section className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-700 capitalize">Recent {activeList} Documents</h3>
-            <div className="flex items-center space-x-2">
-                <label htmlFor="sort-by" className="text-sm font-medium text-gray-700">Sort by:</label>
+      <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 transition-colors overflow-hidden">
+        <div className="flex justify-between items-center px-6 py-4 border-b dark:border-gray-700">
+            <h3 className="text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center">
+                <span className="w-2 h-2 bg-brand-primary rounded-full mr-3 animate-pulse"></span>
+                Recent {activeList} Logs
+            </h3>
+            <div className="flex items-center space-x-3">
+                <label htmlFor="sort-by" className="text-xs font-bold text-gray-400 uppercase">Sort By</label>
                 <select 
                     id="sort-by"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortByType)}
-                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                    className="p-1 text-xs font-bold bg-transparent border-none text-brand-primary dark:text-brand-secondary outline-none"
                 >
-                    <option value="date">Date</option>
-                    <option value="name">Name</option>
-                    <option value="description">Description</option>
+                    <option value="date">Latest Date</option>
+                    <option value="name">Name (A-Z)</option>
+                    <option value="description">Subject</option>
                 </select>
             </div>
         </div>
         <div className="overflow-x-auto">
           {activeList === 'incoming' ? (
-             <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50/50 dark:bg-gray-900/50">
                     <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S/N</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">in DCMDs Office</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Signed</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">S/N</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Received</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Subject</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Ref No</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Sender</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                        <th className="px-6 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">In Office</th>
+                        <th className="px-6 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Signed</th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
                     {incomingDocs.length > 0 ? (
                         incomingDocs.map((doc, index) => (
-                            <tr key={doc.id} onClick={() => setSelectedDoc(doc)} className="hover:bg-gray-50 cursor-pointer">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.receivedDate.toLocaleDateString()}</td>
-                                <td className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs">{doc.subject}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doc.referenceNumber}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.senderName}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getFullStatusBadge(doc.status)}</td>
+                            <tr key={doc.id} onClick={() => setSelectedDoc(doc)} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group">
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500 font-mono">{index + 1}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300 font-medium">{doc.receivedDate.toLocaleDateString()}</td>
+                                <td className="px-6 py-4 text-xs font-bold text-gray-900 dark:text-gray-100 truncate max-w-[200px]">{doc.subject}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">{doc.referenceNumber || '-'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-900 dark:text-gray-200">{doc.senderName}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">{getFullStatusBadge(doc.status)}</td>
                                 <td 
-                                  className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" 
+                                  className="px-6 py-4 whitespace-nowrap text-center" 
                                   onClick={(e) => { 
                                     if (isDispatched(doc.status)) return;
                                     e.stopPropagation(); 
-                                    handleSigningOfficeToggle(doc.id, !doc.signingOffice); 
+                                    handleSigningOfficeToggle(doc.id, !!doc.signingOffice); 
                                   }}>
-                                    <div className={`flex items-center ${isDispatched(doc.status) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-2 ${!!doc.signingOffice ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
-                                            {!!doc.signingOffice && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg>}
-                                        </div>
-                                        <span>{doc.signingOffice ? 'Yes' : 'No'}</span>
+                                    <div className={`inline-flex items-center px-3 py-1 rounded-lg border-2 transition-all ${doc.signingOffice ? 'border-brand-primary bg-brand-primary text-white' : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'} ${isDispatched(doc.status) ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}>
+                                        <span className="text-[10px] font-black uppercase tracking-tighter">{doc.signingOffice ? 'In Office' : 'Not In'}</span>
                                     </div>
                                 </td>
                                 <td 
-                                  className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" 
+                                  className="px-6 py-4 whitespace-nowrap text-center" 
                                   onClick={(e) => { 
                                     if (isDispatched(doc.status)) return;
                                     e.stopPropagation(); 
-                                    handleSignedToggle(doc.id, !isSigned(doc.status)); 
+                                    handleSignedToggle(doc.id, isSigned(doc.status)); 
                                   }}>
-                                     <div className={`flex items-center ${isDispatched(doc.status) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-2 ${isSigned(doc.status) ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
-                                            {isSigned(doc.status) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg>}
-                                        </div>
-                                        <span>{isSigned(doc.status) ? 'Yes' : 'No'}</span>
+                                     <div className={`inline-flex items-center px-3 py-1 rounded-lg border-2 transition-all ${isSigned(doc.status) ? 'border-green-500 bg-green-500 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'} ${isDispatched(doc.status) ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}>
+                                        <span className="text-[10px] font-black uppercase tracking-tighter">{isSigned(doc.status) ? 'Signed' : 'Awaiting'}</span>
                                     </div>
                                 </td>
                             </tr>
                         ))
                     ) : (
-                        <tr><td colSpan={9} className="text-center py-4 text-gray-500">No incoming documents found.</td></tr>
+                        <tr><td colSpan={8} className="text-center py-20 text-gray-400 dark:text-gray-500 italic text-sm">No incoming documents found in local storage.</td></tr>
                     )}
                 </tbody>
              </table>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50/50 dark:bg-gray-900/50">
                     <tr>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S/N</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To Whom</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatched By</th>
-                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action / Signature</th>
+                         <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">S/N</th>
+                         <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Dispatch Date</th>
+                         <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Recipient</th>
+                         <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Subject</th>
+                         <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                         <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Sender / Author</th>
+                         <th className="px-6 py-3 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Proof</th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
                     {outgoingDocs.length > 0 ? (
                         outgoingDocs.map((doc, index) => (
-                            <tr key={doc.id} onClick={() => setSelectedDoc(doc)} className="hover:bg-gray-50 cursor-pointer">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(doc.dispatchedDetails?.dispatchedDate || doc.receivedDate).toLocaleDateString()}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.recipientName || <span className="text-gray-400 italic">Pending</span>}</td>
-                                <td className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs">{doc.subject}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getFullStatusBadge(doc.status)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.dispatchedDetails?.dispatchedBy || '-'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <tr key={doc.id} onClick={() => setSelectedDoc(doc)} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group">
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500 font-mono">{index + 1}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300 font-medium">{(doc.dispatchedDetails?.dispatchedDate || doc.receivedDate).toLocaleDateString()}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-gray-900 dark:text-gray-100">{doc.dispatchedDetails?.recipientName || <span className="text-gray-400 dark:text-gray-500 italic">Pending</span>}</td>
+                                <td className="px-6 py-4 text-xs font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px]">{doc.subject}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">{getFullStatusBadge(doc.status)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{doc.senderName}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right">
                                     {doc.status === DocumentStatus.ReturnedFromSigning ? (
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setView({ name: 'dispatch', docId: doc.id }); }}
-                                            className="bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm"
+                                            className="bg-brand-primary hover:bg-brand-dark text-white text-[10px] font-black py-1 px-3 rounded-lg shadow-sm transition-all uppercase tracking-tighter"
                                         >
-                                            Dispatch Now
+                                            Dispatch
                                         </button>
                                     ) : doc.dispatchedDetails ? (
-                                        <div className="flex items-center">
-                                            <img src={doc.dispatchedDetails.recipientSignature} alt="signature" className="w-16 h-8 object-contain border rounded-sm mr-2" />
-                                            <div className="text-xs text-gray-500">{doc.dispatchedDetails.dispatchedDate.toLocaleDateString()}</div>
+                                        <div className="flex items-center justify-end">
+                                            <div className="w-10 h-6 overflow-hidden rounded border border-gray-200 dark:border-gray-600 bg-white mr-2">
+                                                <img src={doc.dispatchedDetails.recipientSignature} alt="sig" className="w-full h-full object-contain" />
+                                            </div>
+                                            <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
                                         </div>
                                     ) : (
-                                        <span className="text-xs text-gray-400 italic">Awaiting Signature</span>
+                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 italic font-bold">AWAITING</span>
                                     )}
                                 </td>
                             </tr>
                         ))
                     ) : (
-                        <tr><td colSpan={7} className="text-center py-4 text-gray-500">No outgoing documents found.</td></tr>
+                        <tr><td colSpan={7} className="text-center py-20 text-gray-400 dark:text-gray-500 italic text-sm">No outgoing documents logged yet.</td></tr>
                     )}
                 </tbody>
             </table>
